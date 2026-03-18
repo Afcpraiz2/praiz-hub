@@ -17,6 +17,7 @@ if (supabaseUrl && supabaseKey) {
 } else {
   console.error("Supabase initialization error. Check your .env file.");
 }
+
 export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
@@ -469,6 +470,11 @@ export default function App() {
                         <div className="flex-1 min-w-0">
                           <p className={`font-bold text-lg truncate ${currentAudio?.id === file.id ? 'text-purple-400' : 'text-neutral-100'}`}>
                             {file.title}
+                            {file.isPreview && (
+                              <span className="inline-block ml-2 px-2 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-400 text-[10px] uppercase tracking-wider rounded font-bold align-middle mb-1">
+                                Preview
+                              </span>
+                            )}
                           </p>
                           <div className="flex items-center gap-4 text-xs font-medium text-neutral-500 mt-1">
                             {file.isAudio && (
@@ -492,9 +498,11 @@ export default function App() {
                         <button onClick={() => handleShare(file, 'Track')} className="p-2.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Share">
                           <Share2 className="w-4 h-4" />
                         </button>
-                        <a href={downloadUrl} download className="flex items-center gap-2 px-5 py-2.5 bg-white text-black hover:bg-neutral-200 rounded-full transition-all text-sm font-bold w-full sm:w-auto justify-center shadow-lg">
-                          <Download className="w-4 h-4" /> <span className="sm:hidden lg:inline">Download</span>
-                        </a>
+                        {!file.isPreview && (
+                          <a href={downloadUrl} download className="flex items-center gap-2 px-5 py-2.5 bg-white text-black hover:bg-neutral-200 rounded-full transition-all text-sm font-bold w-full sm:w-auto justify-center shadow-lg">
+                            <Download className="w-4 h-4" /> <span className="sm:hidden lg:inline">Download</span>
+                          </a>
+                        )}
                         {isAdmin && (
                           <button onClick={() => deleteFile(file)} className="p-2.5 text-neutral-500 hover:text-red-400 hover:bg-red-400/10 rounded-full transition-colors ml-1" title="Delete">
                             <Trash2 className="w-4 h-4" />
@@ -763,7 +771,14 @@ export default function App() {
                {currentAudio?.isDiary ? <Mic className={`w-6 h-6 text-white relative z-10 ${isPlaying ? 'animate-pulse' : ''}`} /> : <Music className={`w-6 h-6 text-white relative z-10 ${isPlaying ? 'animate-pulse' : ''}`} />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="font-bold text-white truncate text-base">{currentAudio?.title}</p>
+              <p className="font-bold text-white truncate text-base">
+                {currentAudio?.title}
+                {currentAudio?.isPreview && (
+                  <span className="inline-block ml-2 px-1.5 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-400 text-[9px] uppercase tracking-wider rounded font-bold align-middle mb-0.5">
+                    Preview
+                  </span>
+                )}
+              </p>
               <div className="flex items-center gap-3 mt-0.5">
                  <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-400">
                    {isPlaying && <span className="flex gap-0.5 items-end h-3"><span className="w-0.5 h-full bg-purple-400 animate-[bounce_1s_infinite]"></span><span className="w-0.5 h-2/3 bg-purple-400 animate-[bounce_1s_infinite_0.2s]"></span><span className="w-0.5 h-full bg-purple-400 animate-[bounce_1s_infinite_0.4s]"></span></span>}
@@ -809,7 +824,7 @@ export default function App() {
                   <button onClick={() => handleShare(currentAudio)} className="p-3 text-neutral-400 bg-white/5 hover:text-white hover:bg-white/10 rounded-full transition-all" title="Share">
                     <Share2 className="w-5 h-5" />
                   </button>
-                  {!currentAudio.isDiary && (
+                  {!currentAudio.isDiary && !currentAudio.isPreview && (
                     <a href={currentAudio.url + '?download=' + encodeURIComponent(currentAudio.fileName)} download className="flex items-center gap-2 text-sm font-bold text-black bg-white hover:bg-neutral-200 px-6 py-3 rounded-full transition-all shadow-lg">
                       <Download className="w-4 h-4" /> Download
                     </a>
@@ -841,6 +856,7 @@ function UploadModal({ onClose, onUploadSuccess }) {
   const [lyrics, setLyrics] = useState('');
   const [diaryContent, setDiaryContent] = useState('');
   const [isFeaturedVideo, setIsFeaturedVideo] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
@@ -859,8 +875,12 @@ function UploadModal({ onClose, onUploadSuccess }) {
       setFile(selectedFile);
       setError('');
       if (!title) setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
-      if (selectedFile.type.startsWith('video/')) setIsFeaturedVideo(true);
-      else setIsFeaturedVideo(false);
+      if (selectedFile.type.startsWith('video/')) {
+        setIsFeaturedVideo(true);
+        setIsPreview(false);
+      } else {
+        setIsFeaturedVideo(false);
+      }
     }
   };
 
@@ -1022,6 +1042,7 @@ function UploadModal({ onClose, onUploadSuccess }) {
           lyrics: lyrics.trim() || null,
           isFeaturedVideo: isFeaturedVideo,
           isDiary: false,
+          isPreview: isPreview,
           plays: 0,
           likes: 0
         };
@@ -1112,10 +1133,20 @@ function UploadModal({ onClose, onUploadSuccess }) {
                 </div>
 
                 {!isFeaturedVideo && (
-                  <div>
-                    <label className="block text-sm font-bold text-neutral-300 mb-2">Lyrics (Optional)</label>
-                    <textarea value={lyrics} onChange={(e) => setLyrics(e.target.value)} placeholder="Paste lyrics here..." disabled={isUploading} rows={4} className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50 resize-none transition-colors" />
-                  </div>
+                  <>
+                    <div className="flex items-center gap-3 bg-black p-4 rounded-xl border border-white/5 mt-4">
+                      <input type="checkbox" id="previewTrack" checked={isPreview} onChange={(e) => setIsPreview(e.target.checked)} disabled={isUploading} className="w-5 h-5 accent-orange-500 bg-neutral-800 border-neutral-700 rounded cursor-pointer" />
+                      <label htmlFor="previewTrack" className="text-sm font-bold text-white cursor-pointer flex-1">
+                        Mark as Preview / Teaser
+                        <span className="block text-xs text-neutral-500 mt-1 font-medium">Adds a "PREVIEW" badge and disables the download button. (Upload a short cut of your song!)</span>
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-neutral-300 mb-2">Lyrics (Optional)</label>
+                      <textarea value={lyrics} onChange={(e) => setLyrics(e.target.value)} placeholder="Paste lyrics here..." disabled={isUploading} rows={4} className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50 resize-none transition-colors" />
+                    </div>
+                  </>
                 )}
               </>
             ) : (
