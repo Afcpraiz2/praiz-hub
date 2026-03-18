@@ -1,21 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Download, Upload, Music, Trash2, X, Plus, Disc3, Lock, LogOut, File, FileText, FileArchive, Image as ImageIcon, Loader2 } from 'lucide-react';
 
-// --- SUPABASE IMPORTS (Commented for Preview Compatibility) ---
-// import { createClient } from '@supabase/supabase-js';
+// --- SUPABASE IMPORTS ---
+import { createClient } from '@supabase/supabase-js';
 
 // --- SUPABASE CONFIGURATION ---
-// IMPORTANT: Before deploying to Vercel, UNCOMMENT the code below and delete the fallback!
-// const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-// const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Initialize Supabase only if the config exists
 let supabase = null;
-// if (supabaseUrl && supabaseKey) {
-//   supabase = createClient(supabaseUrl, supabaseKey);
-// } else {
-//   console.error("Supabase initialization error. Did you forget your .env file?");
-// }
+if (supabaseUrl && supabaseKey) {
+  supabase = createClient(supabaseUrl, supabaseKey);
+} else {
+  console.error("Supabase initialization error. Did you forget your .env file?");
+}
 
 export default function App() {
   // App State
