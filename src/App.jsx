@@ -26,12 +26,12 @@ export default function App() {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [activeLyrics, setActiveLyrics] = useState(null); // State for Lyrics Modal
-  const [toastMessage, setToastMessage] = useState(''); // State for Toast notification
+  const [activeLyrics, setActiveLyrics] = useState(null); 
+  const [toastMessage, setToastMessage] = useState(''); 
+  const [showFeaturedVideo, setShowFeaturedVideo] = useState(true); // Control floating video
   
   const audioRef = useRef(null);
 
-  // Clear toast after 3 seconds
   useEffect(() => {
     if (toastMessage) {
       const timer = setTimeout(() => setToastMessage(''), 3000);
@@ -53,7 +53,6 @@ export default function App() {
         console.error("Error sharing:", err);
       }
     } else {
-      // Fallback for desktop/unsupported browsers
       try {
         await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
         setToastMessage("Link copied to clipboard!");
@@ -128,7 +127,10 @@ export default function App() {
     }
   };
 
-  const audioFiles = files.filter(f => f.isAudio);
+  // FILTER LOGIC: Separate the featured video from regular downloads
+  const regularFiles = files.filter(f => !f.isFeaturedVideo);
+  const featuredVideo = files.find(f => f.isFeaturedVideo); // Gets the newest featured video
+  const audioFiles = regularFiles.filter(f => f.isAudio);
 
   const handleNextAudio = () => {
     if (!currentAudio || audioFiles.length <= 1) return;
@@ -236,7 +238,7 @@ export default function App() {
             </p>
             <h2 className="text-4xl md:text-6xl font-extrabold mb-4 tracking-tighter">Praiz</h2>
             <p className="text-neutral-400 max-w-xl text-lg">
-              {isAdmin ? "Manage your tracks, lyrics, beat packs, and documents here." : "Listen to my latest tracks, read the lyrics, and download directly."}
+              {isAdmin ? "Manage your tracks, lyrics, beat packs, and featured videos here." : "Listen to my latest tracks, read the lyrics, and download directly."}
             </p>
           </div>
         </div>
@@ -245,25 +247,24 @@ export default function App() {
         <div className="mb-6">
           <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
             Available Files 
-            {!isLoadingFiles && <span className="text-sm font-medium text-neutral-500 bg-neutral-900 px-2 py-1 rounded-full">{files.length}</span>}
+            {!isLoadingFiles && <span className="text-sm font-medium text-neutral-500 bg-neutral-900 px-2 py-1 rounded-full">{regularFiles.length}</span>}
           </h3>
           
           {isLoadingFiles ? (
              <div className="flex justify-center items-center py-20">
                <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
              </div>
-          ) : files.length === 0 ? (
+          ) : regularFiles.length === 0 ? (
             <div className="border border-dashed border-neutral-800 rounded-2xl p-12 flex flex-col items-center justify-center text-center bg-neutral-900/20">
               <File className="w-12 h-12 text-neutral-600 mb-4" />
               <h3 className="text-xl font-semibold mb-2">No files yet</h3>
-              <p className="text-neutral-500 max-w-sm mb-6">Praiz hasn't uploaded any files yet. Check back soon!</p>
+              <p className="text-neutral-500 max-w-sm mb-6">Praiz hasn't uploaded any downloadable files yet. Check back soon!</p>
             </div>
           ) : (
             <div className="bg-neutral-900/40 rounded-2xl border border-neutral-800 overflow-hidden">
               <div className="divide-y divide-neutral-800/50">
-                {files.map((file) => {
+                {regularFiles.map((file) => {
                   const isThisPlaying = currentAudio?.id === file.id && isPlaying;
-                  // The ?download= force header for iPhones
                   const downloadUrl = file.url + '?download=' + encodeURIComponent(file.fileName);
 
                   return (
@@ -297,18 +298,10 @@ export default function App() {
                       </div>
 
                       <div className="flex items-center gap-2 justify-end sm:ml-4 border-t sm:border-t-0 border-neutral-800/50 pt-3 sm:pt-0">
-                        <button
-                          onClick={() => handleShare(file)}
-                          className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-white hover:text-black text-neutral-300 rounded-full transition-all text-sm font-medium w-full sm:w-auto justify-center"
-                          title="Share Track"
-                        >
+                        <button onClick={() => handleShare(file)} className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-white hover:text-black text-neutral-300 rounded-full transition-all text-sm font-medium w-full sm:w-auto justify-center" title="Share">
                           <Share2 className="w-4 h-4" /> <span className="sm:hidden">Share</span>
                         </button>
-                        <a
-                          href={downloadUrl}
-                          download
-                          className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-white hover:text-black text-neutral-300 rounded-full transition-all text-sm font-medium w-full sm:w-auto justify-center"
-                        >
+                        <a href={downloadUrl} download className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-white hover:text-black text-neutral-300 rounded-full transition-all text-sm font-medium w-full sm:w-auto justify-center">
                           <Download className="w-4 h-4" /> Download
                         </a>
                         {isAdmin && (
@@ -325,6 +318,39 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* Floating Featured Video Player */}
+      {featuredVideo && showFeaturedVideo && (
+        <div className="fixed bottom-[104px] right-4 sm:right-8 z-30 w-72 sm:w-80 bg-neutral-900 border border-neutral-800 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden animate-in slide-in-from-bottom-8 duration-500">
+          <div className="flex items-center justify-between p-2.5 bg-neutral-950 border-b border-neutral-800">
+            <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider px-1 truncate pr-2">
+              {featuredVideo.title}
+            </span>
+            <div className="flex items-center gap-1">
+              {isAdmin && (
+                <button onClick={() => deleteFile(featuredVideo)} className="p-1 text-neutral-500 hover:text-red-400 rounded-md transition-colors" title="Delete Featured Video">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+              <button onClick={() => setShowFeaturedVideo(false)} className="p-1 text-neutral-500 hover:text-white rounded-md transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          <div className="aspect-video w-full bg-black relative">
+            <video 
+              src={featuredVideo.url} 
+              controls 
+              autoPlay 
+              muted 
+              loop 
+              className="w-full h-full object-cover"
+              controlsList="nodownload noplaybackrate"
+              disablePictureInPicture
+            />
+          </div>
+        </div>
+      )}
 
       {/* Lyrics Modal */}
       {activeLyrics && (
@@ -377,7 +403,7 @@ export default function App() {
       )}
 
       {/* Bottom Audio Player */}
-      <div className={`fixed bottom-0 left-0 right-0 bg-neutral-900/95 backdrop-blur-lg border-t border-neutral-800 p-4 transition-transform duration-300 ease-in-out z-40 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] ${currentAudio ? 'translate-y-0' : 'translate-y-full'}`}>
+      <div className={`fixed bottom-0 left-0 right-0 bg-neutral-900/95 backdrop-blur-lg border-t border-neutral-800 p-4 transition-transform duration-300 ease-in-out z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] ${currentAudio ? 'translate-y-0' : 'translate-y-full'}`}>
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center gap-4 sm:gap-8">
           <div className="flex items-center gap-3 w-full sm:w-1/3 min-w-0">
             <div className="w-12 h-12 rounded bg-gradient-to-br from-purple-800 to-indigo-900 flex items-center justify-center shrink-0">
@@ -442,7 +468,7 @@ export default function App() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-white text-black px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 animate-in slide-in-from-top-4 fade-in font-medium">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] bg-white text-black px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 animate-in slide-in-from-top-4 fade-in font-medium">
           <Check className="w-5 h-5 text-green-500" />
           {toastMessage}
         </div>
@@ -455,6 +481,7 @@ function UploadModal({ onClose, onUploadSuccess }) {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
   const [lyrics, setLyrics] = useState('');
+  const [isFeaturedVideo, setIsFeaturedVideo] = useState(false); // New state for video toggle
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
@@ -464,6 +491,13 @@ function UploadModal({ onClose, onUploadSuccess }) {
       setFile(selectedFile);
       setError('');
       if (!title) setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
+      
+      // Auto-check featured video if it's an MP4
+      if (selectedFile.type.startsWith('video/')) {
+        setIsFeaturedVideo(true);
+      } else {
+        setIsFeaturedVideo(false);
+      }
     }
   };
 
@@ -495,7 +529,8 @@ function UploadModal({ onClose, onUploadSuccess }) {
         url: publicUrl,
         storagePath: storagePath,
         isAudio: isAudio,
-        lyrics: lyrics.trim() || null // Save lyrics if they exist
+        lyrics: lyrics.trim() || null,
+        isFeaturedVideo: isFeaturedVideo // Save the featured flag
       };
 
       const { data: insertedData, error: dbError } = await supabase.from('files').insert([fileData]).select().single();
@@ -512,10 +547,10 @@ function UploadModal({ onClose, onUploadSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col">
         <div className="p-6 border-b border-neutral-800 flex items-center justify-between shrink-0">
-          <h2 className="text-xl font-bold">Upload Track or File</h2>
+          <h2 className="text-xl font-bold">Upload Track or Video</h2>
           {!isUploading && (
             <button onClick={onClose} className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-full transition-colors">
               <X className="w-5 h-5" />
@@ -526,12 +561,12 @@ function UploadModal({ onClose, onUploadSuccess }) {
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto custom-scrollbar">
           <div className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-neutral-400 mb-1.5">Track / File Title</label>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Midnight Groove" disabled={isUploading} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50" />
+              <label className="block text-sm font-medium text-neutral-400 mb-1.5">Title</label>
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Midnight Groove or Studio Session" disabled={isUploading} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50" />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-neutral-400 mb-1.5">File to Share</label>
+              <label className="block text-sm font-medium text-neutral-400 mb-1.5">File to Upload</label>
               <div className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-colors ${isUploading ? 'border-neutral-700 bg-neutral-950/50' : 'border-neutral-700 hover:border-purple-500/50 cursor-pointer bg-neutral-950/50 group'}`}>
                 {!isUploading && <input type="file" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />}
                 <Upload className={`w-8 h-8 mx-auto mb-3 transition-colors ${isUploading ? 'text-neutral-600' : 'text-neutral-500 group-hover:text-purple-400'}`} />
@@ -544,19 +579,37 @@ function UploadModal({ onClose, onUploadSuccess }) {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-neutral-400 mb-1.5 flex justify-between">
-                <span>Lyrics (Optional)</span>
-              </label>
-              <textarea 
-                value={lyrics} 
-                onChange={(e) => setLyrics(e.target.value)} 
-                placeholder="Paste song lyrics here..." 
-                disabled={isUploading} 
-                rows={5}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50 resize-none" 
+            {/* Featured Video Toggle */}
+            <div className="flex items-center gap-3 bg-neutral-950 p-4 rounded-lg border border-neutral-800">
+              <input 
+                type="checkbox" 
+                id="featuredVideo" 
+                checked={isFeaturedVideo} 
+                onChange={(e) => setIsFeaturedVideo(e.target.checked)}
+                disabled={isUploading}
+                className="w-4 h-4 accent-purple-500 bg-neutral-800 border-neutral-700 rounded"
               />
+              <label htmlFor="featuredVideo" className="text-sm font-medium text-neutral-300 cursor-pointer flex-1">
+                Set as Floating Featured Video
+                <span className="block text-xs text-neutral-500 mt-0.5 font-normal">Check this to play it in the corner and hide it from downloads.</span>
+              </label>
             </div>
+
+            {!isFeaturedVideo && (
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-1.5 flex justify-between">
+                  <span>Lyrics (Optional for Tracks)</span>
+                </label>
+                <textarea 
+                  value={lyrics} 
+                  onChange={(e) => setLyrics(e.target.value)} 
+                  placeholder="Paste song lyrics here..." 
+                  disabled={isUploading} 
+                  rows={4}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50 resize-none" 
+                />
+              </div>
+            )}
 
             {error && <p className="text-red-400 text-sm">{error}</p>}
           </div>
