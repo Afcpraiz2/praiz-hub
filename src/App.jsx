@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Play, Pause, SkipBack, SkipForward, Download, Upload, Music, 
   Trash2, X, Plus, Disc3, Lock, LogOut, FileArchive, 
-  Loader2, AlignLeft, Share2, Check, Heart, Headphones, BookOpen, PenTool, Video
+  Loader2, AlignLeft, Share2, Check, Heart, Headphones, BookOpen, PenTool, Video, MessageSquare, Mail, Send, User
 } from 'lucide-react';
 
 import { createClient } from '@supabase/supabase-js';
@@ -25,24 +25,34 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
+  // Data States
   const [files, setFiles] = useState([]);
+  const [wallMessages, setWallMessages] = useState([]);
+  
+  // Audio States
   const [currentAudio, setCurrentAudio] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  
+  // UI States
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [activeLyrics, setActiveLyrics] = useState(null); 
   const [activeDiary, setActiveDiary] = useState(null); 
   const [toastMessage, setToastMessage] = useState(''); 
-  const [activeTab, setActiveTab] = useState('music'); // 'music' or 'diary'
+  const [activeTab, setActiveTab] = useState('music'); // 'music', 'diary', 'wall'
   
-  // Local storage for likes so fans can't spam the like button
+  // Newsletter & Wall Form States
+  const [email, setEmail] = useState('');
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  const [fanName, setFanName] = useState('');
+  const [fanMessage, setFanMessage] = useState('');
+  const [isPostingMessage, setIsPostingMessage] = useState(false);
+  
   const [likedItems, setLikedItems] = useState([]);
-
   const audioRef = useRef(null);
 
   useEffect(() => {
-    // Load liked items from local storage on boot
     const savedLikes = localStorage.getItem('praiz_likes');
     if (savedLikes) {
       try { setLikedItems(JSON.parse(savedLikes)); } catch (e) {}
@@ -77,25 +87,34 @@ export default function App() {
     }
   };
 
-  const fetchFiles = async () => {
+  const fetchAllData = async () => {
     if (!supabase) return setIsLoading(false);
     try {
-      const { data, error } = await supabase
+      // Fetch Files
+      const { data: filesData, error: filesError } = await supabase
         .from('files')
         .select('*')
         .order('uploadDate', { ascending: false });
+      if (filesError) throw filesError;
+      setFiles(filesData || []);
 
-      if (error) throw error;
-      setFiles(data || []);
+      // Fetch Wall Messages
+      const { data: wallData, error: wallError } = await supabase
+        .from('fan_wall')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (wallError) throw wallError;
+      setWallMessages(wallData || []);
+
     } catch (error) {
-      console.error("Error fetching files:", error);
+      console.error("Error fetching data:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchFiles();
+    fetchAllData();
   }, []);
 
   // --- AUDIO LOGIC ---
@@ -137,12 +156,9 @@ export default function App() {
       setCurrentAudio(file);
       setIsPlaying(true);
       
-      // Increment Plays in Database!
       if (supabase) {
         const newPlays = (file.plays || 0) + 1;
-        // Optimistic UI update
         setFiles(files.map(f => f.id === file.id ? { ...f, plays: newPlays } : f));
-        // Background DB update
         await supabase.from('files').update({ plays: newPlays }).eq('id', file.id);
       }
     }
@@ -165,6 +181,71 @@ export default function App() {
       await supabase.from('files').update({ likes: newLikes }).eq('id', file.id);
     }
     showToast("Liked! ❤️");
+  };
+
+  // --- FAN WALL LOGIC ---
+  const handlePostMessage = async (e) => {
+    e.preventDefault();
+    if (!fanName.trim() || !fanMessage.trim()) {
+      showToast("Please fill in both fields!");
+      return;
+    }
+    if (!supabase) return showToast("Database disconnected.");
+
+    setIsPostingMessage(true);
+    try {
+      const newMessage = { fan_name: fanName.trim(), message: fanMessage.trim() };
+      const { data, error } = await supabase.from('fan_wall').insert([newMessage]).select().single();
+      if (error) throw error;
+      
+      setWallMessages([data, ...wallMessages]);
+      setFanMessage(''); // Keep the name so they don't have to retype it
+      showToast("Message posted!");
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to post message.");
+    } finally {
+      setIsPostingMessage(false);
+    }
+  };
+
+  const deleteWallMessage = async (id) => {
+    if (!window.confirm("Delete this message?")) return;
+    try {
+      const { error } = await supabase.from('fan_wall').delete().eq('id', id);
+      if (error) throw error;
+      setWallMessages(wallMessages.filter(m => m.id !== id));
+      showToast("Message deleted.");
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to delete.");
+    }
+  };
+
+  // --- NEWSLETTER LOGIC ---
+  const handleSubscribe = async (e) => {
+    e.preventDefault();
+    if (!email.trim() || !email.includes('@')) {
+      showToast("Please enter a valid email.");
+      return;
+    }
+    if (!supabase) return showToast("Database disconnected.");
+
+    setIsSubscribing(true);
+    try {
+      const { error } = await supabase.from('subscribers').insert([{ email: email.trim() }]);
+      if (error) {
+        if (error.code === '23505') throw new Error("You are already subscribed!");
+        throw error;
+      }
+      setEmail('');
+      showToast("Subscribed successfully! 🎉");
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Failed to subscribe.");
+    } finally {
+      setIsSubscribing(false);
+    }
   };
 
   // --- FILTERING ---
@@ -262,7 +343,7 @@ export default function App() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-12">
         
         {/* Dynamic Hero Section */}
-        <div className="relative overflow-hidden rounded-3xl bg-neutral-900/50 border border-white/5 mb-12 flex flex-col md:flex-row">
+        <div className="relative overflow-hidden rounded-3xl bg-neutral-900/50 border border-white/5 mb-12 flex flex-col md:flex-row shadow-2xl shadow-purple-900/10">
           {/* Left Side: Cinematic Video OR Purple Graphic */}
           <div className="w-full md:w-1/2 aspect-video md:aspect-auto bg-black relative shrink-0 overflow-hidden">
             {featuredVideo ? (
@@ -278,7 +359,6 @@ export default function App() {
               </div>
             )}
             
-            {/* Admin Delete Video Button */}
             {isAdmin && featuredVideo && (
               <button onClick={() => deleteFile(featuredVideo)} className="absolute top-4 right-4 bg-black/60 backdrop-blur p-2 rounded-full text-red-400 hover:text-red-300 transition z-10">
                 <Trash2 className="w-4 h-4" />
@@ -296,26 +376,33 @@ export default function App() {
               Welcome to the <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">Praiz Hub</span>
             </h2>
             <p className="text-neutral-400 text-lg leading-relaxed max-w-md">
-              Stream my latest tracks, download exclusive files, and dive into my personal diaries and thoughts.
+              Stream my latest tracks, download exclusive files, read my personal diaries, and connect with the community.
             </p>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-6 border-b border-white/5 mb-8">
+        <div className="flex items-center gap-6 border-b border-white/5 mb-8 overflow-x-auto custom-scrollbar pb-1">
           <button 
             onClick={() => setActiveTab('music')}
-            className={`pb-4 text-sm font-semibold tracking-wide uppercase transition-colors relative ${activeTab === 'music' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+            className={`pb-4 text-sm font-semibold tracking-wide uppercase transition-colors relative whitespace-nowrap ${activeTab === 'music' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
           >
             Tracks & Files
             {activeTab === 'music' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500 rounded-t-full"></div>}
           </button>
           <button 
             onClick={() => setActiveTab('diary')}
-            className={`pb-4 text-sm font-semibold tracking-wide uppercase transition-colors relative ${activeTab === 'diary' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+            className={`pb-4 text-sm font-semibold tracking-wide uppercase transition-colors relative whitespace-nowrap ${activeTab === 'diary' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
           >
             Praiz Diaries
             {activeTab === 'diary' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500 rounded-t-full"></div>}
+          </button>
+          <button 
+            onClick={() => setActiveTab('wall')}
+            className={`pb-4 text-sm font-semibold tracking-wide uppercase transition-colors relative whitespace-nowrap flex items-center gap-2 ${activeTab === 'wall' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+          >
+            Fan Wall <span className="bg-white/10 text-white text-[10px] px-2 py-0.5 rounded-full">{wallMessages.length}</span>
+            {activeTab === 'wall' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500 rounded-t-full"></div>}
           </button>
         </div>
 
@@ -342,7 +429,6 @@ export default function App() {
                   return (
                     <div key={file.id} className={`group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-2xl border transition-all duration-300 ${currentAudio?.id === file.id ? 'bg-purple-900/10 border-purple-500/20' : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04] hover:border-white/10'}`}>
                       
-                      {/* Left: Play Button & Details */}
                       <div className="flex items-center gap-4 flex-1 min-w-0">
                         <div className="w-12 h-12 shrink-0">
                           {file.isAudio ? (
@@ -375,7 +461,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Right: Actions */}
                       <div className="flex items-center gap-2 justify-end sm:ml-4 border-t sm:border-t-0 border-white/5 pt-4 sm:pt-0">
                         <button onClick={() => handleLike(file)} className={`p-2.5 rounded-full transition-colors ${likedItems.includes(file.id) ? 'text-purple-500 bg-purple-500/10' : 'text-neutral-400 hover:text-white hover:bg-white/10'}`} title="Like">
                           <Heart className={`w-4 h-4 ${likedItems.includes(file.id) ? 'fill-current' : ''}`} />
@@ -398,7 +483,7 @@ export default function App() {
               </div>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'diary' ? (
           /* DIARIES TAB */
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             {diaryEntries.length === 0 ? (
@@ -444,7 +529,116 @@ export default function App() {
               </div>
             )}
           </div>
+        ) : (
+          /* FAN WALL TAB */
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="max-w-3xl mx-auto">
+              
+              {/* Post a Message Form */}
+              <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-6 md:p-8 mb-8">
+                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-purple-400" /> Leave a Message
+                </h3>
+                <form onSubmit={handlePostMessage} className="space-y-4">
+                  <div>
+                    <input 
+                      type="text" 
+                      placeholder="Your Name / Handle" 
+                      value={fanName}
+                      onChange={(e) => setFanName(e.target.value)}
+                      maxLength={30}
+                      disabled={isPostingMessage}
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <textarea 
+                      placeholder="Show some love, ask a question, or drop a vibe..." 
+                      value={fanMessage}
+                      onChange={(e) => setFanMessage(e.target.value)}
+                      maxLength={300}
+                      rows={3}
+                      disabled={isPostingMessage}
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 resize-none transition-colors"
+                    />
+                    <div className="text-right text-xs text-neutral-500 mt-1">{fanMessage.length}/300</div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button 
+                      type="submit" 
+                      disabled={isPostingMessage || !fanName.trim() || !fanMessage.trim()}
+                      className="px-6 py-2.5 rounded-full font-bold bg-white text-black hover:bg-neutral-200 disabled:opacity-50 flex items-center gap-2 transition-all shadow-lg"
+                    >
+                      {isPostingMessage ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Post Message</>}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Messages Feed */}
+              <div className="space-y-4">
+                {wallMessages.length === 0 ? (
+                   <div className="text-center py-12 text-neutral-500">
+                     No messages yet. Be the first to post on the wall!
+                   </div>
+                ) : (
+                  wallMessages.map(msg => (
+                    <div key={msg.id} className="bg-black/50 border border-white/5 rounded-2xl p-5 hover:border-white/10 transition-colors flex gap-4 group">
+                      <div className="w-10 h-10 rounded-full bg-purple-900/40 border border-purple-500/20 flex items-center justify-center shrink-0">
+                        <User className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start mb-1">
+                          <p className="font-bold text-white truncate">{msg.fan_name}</p>
+                          <span className="text-xs text-neutral-500 whitespace-nowrap ml-2">
+                            {new Date(msg.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-neutral-300 text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
+                      </div>
+                      {isAdmin && (
+                        <button onClick={() => deleteWallMessage(msg.id)} className="opacity-0 group-hover:opacity-100 p-2 text-neutral-600 hover:text-red-400 transition-all h-fit">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         )}
+
+        {/* Newsletter Section */}
+        <div className="mt-20 border-t border-white/5 pt-16 pb-8">
+           <div className="bg-gradient-to-br from-purple-900/10 to-indigo-900/10 border border-purple-500/10 rounded-3xl p-8 md:p-12 text-center max-w-3xl mx-auto shadow-2xl shadow-purple-900/5">
+             <div className="w-16 h-16 rounded-full bg-purple-500/10 flex items-center justify-center mx-auto mb-6">
+                <Mail className="w-8 h-8 text-purple-400" />
+             </div>
+             <h3 className="text-2xl font-extrabold text-white mb-3">Join the Mailing List</h3>
+             <p className="text-neutral-400 mb-8 max-w-md mx-auto">
+               Subscribe to get notified first when I drop new tracks, exclusive beat packs, or update my diary.
+             </p>
+             <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+               <input 
+                 type="email" 
+                 placeholder="Enter your email address" 
+                 value={email}
+                 onChange={(e) => setEmail(e.target.value)}
+                 disabled={isSubscribing}
+                 className="flex-1 bg-black border border-white/10 rounded-full px-6 py-3.5 text-white focus:outline-none focus:border-purple-500 transition-colors"
+               />
+               <button 
+                 type="submit" 
+                 disabled={isSubscribing || !email.trim()}
+                 className="px-8 py-3.5 rounded-full font-bold bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 transition-all shadow-lg whitespace-nowrap flex items-center justify-center min-w-[120px]"
+               >
+                 {isSubscribing ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Subscribe'}
+               </button>
+             </form>
+           </div>
+        </div>
+
       </main>
 
       {/* Reader Modals (Lyrics & Diaries) */}
