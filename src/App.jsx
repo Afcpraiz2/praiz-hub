@@ -17,6 +17,7 @@ if (supabaseUrl && supabaseKey) {
 } else {
   console.error("Supabase initialization error. Check your .env file.");
 }
+
 export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
@@ -867,41 +868,54 @@ function UploadModal({ onClose, onUploadSuccess }) {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      if (ctx.state === 'suspended') await ctx.resume();
-      audioCtxRef.current = ctx;
-      const source = ctx.createMediaStreamSource(stream);
-      const dest = ctx.createMediaStreamDestination();
+      let streamToRecord = stream;
 
-      // Apply Voice FX
-      if (voiceEffect === 'echo') {
-        const delay = ctx.createDelay();
-        delay.delayTime.value = 0.3;
-        const feedback = ctx.createGain();
-        feedback.gain.value = 0.4;
-        source.connect(delay);
-        delay.connect(feedback);
-        feedback.connect(delay);
-        delay.connect(dest);
-        source.connect(dest);
-      } else if (voiceEffect === 'radio') {
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'bandpass';
-        filter.frequency.value = 1000;
-        source.connect(filter);
-        filter.connect(dest);
-      } else if (voiceEffect === 'studio') {
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'lowshelf';
-        filter.frequency.value = 200;
-        filter.gain.value = 10;
-        source.connect(filter);
-        filter.connect(dest);
-      } else {
-        source.connect(dest);
+      // Only route through Web Audio API if we are actually using an effect.
+      // This bypasses the Safari/Chrome 5-second duration bugs for standard recordings.
+      if (voiceEffect !== 'none') {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === 'suspended') await ctx.resume();
+        audioCtxRef.current = ctx;
+        const source = ctx.createMediaStreamSource(stream);
+        const dest = ctx.createMediaStreamDestination();
+
+        // Apply Voice FX
+        if (voiceEffect === 'echo') {
+          const delay = ctx.createDelay();
+          delay.delayTime.value = 0.3;
+          const feedback = ctx.createGain();
+          feedback.gain.value = 0.4;
+          source.connect(delay);
+          delay.connect(feedback);
+          feedback.connect(delay);
+          delay.connect(dest);
+          source.connect(dest);
+        } else if (voiceEffect === 'radio') {
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = 1000;
+          source.connect(filter);
+          filter.connect(dest);
+        } else if (voiceEffect === 'studio') {
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'lowshelf';
+          filter.frequency.value = 200;
+          filter.gain.value = 10;
+          source.connect(filter);
+          filter.connect(dest);
+        }
+        streamToRecord = dest.stream;
       }
 
-      const recorder = new MediaRecorder(dest.stream);
+      // Find best supported format for the browser
+      const options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options.mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        options.mimeType = 'audio/mp4';
+      }
+
+      const recorder = new MediaRecorder(streamToRecord, options);
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
 
@@ -914,11 +928,14 @@ function UploadModal({ onClose, onUploadSuccess }) {
         const blob = new Blob(chunksRef.current, { type: mimeType });
         setVoiceBlob(blob);
         setVoiceUrl(URL.createObjectURL(blob));
+        // Stop the physical microphone
         stream.getTracks().forEach(t => t.stop());
-        if (ctx.state !== 'closed') ctx.close();
+        if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+           audioCtxRef.current.close();
+        }
       };
 
-      recorder.start(200); // 200ms time slices fixes the 0-byte bug on iOS/Safari
+      recorder.start(); // Recording in one continuous chunk prevents duration header bugs
       setIsRecording(true);
     } catch (err) {
       console.error("Mic error:", err);
@@ -928,8 +945,12 @@ function UploadModal({ onClose, onUploadSuccess }) {
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
+      // Request remaining data before stopping to prevent 0-byte cuts
+      try { mediaRecorderRef.current.requestData(); } catch (e) {}
+      setTimeout(() => {
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+      }, 100);
     }
   };
 
