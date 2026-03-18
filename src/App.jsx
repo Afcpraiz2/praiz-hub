@@ -5,7 +5,7 @@ import {
   Loader2, AlignLeft, Share2, Check, Heart, Headphones, BookOpen, PenTool, Video, MessageSquare, Mail, Send, User, Mic, Square, Radio, Speaker
 } from 'lucide-react';
 
-import { createClient } from '@supabase/supabase-js';
+/import { createClient } from '@supabase/supabase-js';
 
 // --- SUPABASE CONFIGURATION ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -17,7 +17,6 @@ if (supabaseUrl && supabaseKey) {
 } else {
   console.error("Supabase initialization error. Check your .env file.");
 }
-
 export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
