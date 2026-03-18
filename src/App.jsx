@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Play, Pause, SkipBack, SkipForward, Download, Upload, Music, 
   Trash2, X, Plus, Disc3, Lock, LogOut, FileArchive, 
-  Loader2, AlignLeft, Share2, Check, Heart, Headphones, BookOpen, PenTool, Video, MessageSquare, Mail, Send, User
+  Loader2, AlignLeft, Share2, Check, Heart, Headphones, BookOpen, PenTool, Video, MessageSquare, Mail, Send, User, Mic, Square, Radio, Speaker
 } from 'lucide-react';
 
 import { createClient } from '@supabase/supabase-js';
@@ -90,7 +90,6 @@ export default function App() {
   const fetchAllData = async () => {
     if (!supabase) return setIsLoading(false);
     try {
-      // Fetch Files
       const { data: filesData, error: filesError } = await supabase
         .from('files')
         .select('*')
@@ -98,7 +97,6 @@ export default function App() {
       if (filesError) throw filesError;
       setFiles(filesData || []);
 
-      // Fetch Wall Messages
       const { data: wallData, error: wallError } = await supabase
         .from('fan_wall')
         .select('*')
@@ -164,6 +162,10 @@ export default function App() {
     }
   };
 
+  const togglePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
+
   const handleLike = async (file) => {
     if (likedItems.includes(file.id)) {
       showToast("You already liked this!");
@@ -199,7 +201,7 @@ export default function App() {
       if (error) throw error;
       
       setWallMessages([data, ...wallMessages]);
-      setFanMessage(''); // Keep the name so they don't have to retype it
+      setFanMessage(''); 
       showToast("Message posted!");
     } catch (err) {
       console.error(err);
@@ -251,8 +253,10 @@ export default function App() {
   // --- FILTERING ---
   const featuredVideo = files.find(f => f.isFeaturedVideo);
   const regularFiles = files.filter(f => !f.isFeaturedVideo && !f.isDiary);
-  const audioFiles = regularFiles.filter(f => f.isAudio);
   const diaryEntries = files.filter(f => f.isDiary);
+  
+  // Dynamic audio queue based on what's playing
+  const audioFiles = currentAudio?.isDiary ? diaryEntries.filter(f => f.isAudio) : regularFiles.filter(f => f.isAudio);
 
   const handleNextAudio = () => {
     if (!currentAudio || audioFiles.length <= 1) return;
@@ -343,8 +347,7 @@ export default function App() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-12">
         
         {/* Dynamic Hero Section */}
-        <div className="relative overflow-hidden rounded-3xl bg-neutral-900/50 border border-white/5 mb-12 flex flex-col md:flex-row shadow-2xl shadow-purple-900/10">
-          {/* Left Side: Cinematic Video OR Purple Graphic */}
+        <div className="relative overflow-hidden rounded-3xl bg-neutral-900/50 border border-white/5 mb-8 flex flex-col md:flex-row shadow-2xl shadow-purple-900/10">
           <div className="w-full md:w-1/2 aspect-video md:aspect-auto bg-black relative shrink-0 overflow-hidden">
             {featuredVideo ? (
               <video 
@@ -366,7 +369,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Right Side: Welcome Text */}
           <div className="p-8 md:p-12 flex flex-col justify-center relative z-10">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 text-xs font-semibold tracking-wider uppercase mb-4 w-fit border border-purple-500/20">
               <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
@@ -376,8 +378,31 @@ export default function App() {
               Welcome to the <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">Praiz Hub</span>
             </h2>
             <p className="text-neutral-400 text-lg leading-relaxed max-w-md">
-              Stream my latest tracks, download exclusive files, read my personal diaries, and connect with the community.
+              Stream my latest tracks, download exclusive files, listen to my voice notes, and connect with the community.
             </p>
+          </div>
+        </div>
+
+        {/* 🚨 COMING SOON BANNER */}
+        <div className="mb-12 bg-gradient-to-r from-purple-900/40 via-black to-indigo-900/40 border border-purple-500/20 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden group shadow-2xl shadow-purple-900/20">
+          <div className="absolute inset-0 bg-purple-500/5 group-hover:bg-purple-500/10 transition-colors"></div>
+          <div className="relative z-10 flex items-center gap-6 w-full md:w-auto">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-900/50 shrink-0 border border-white/10 relative overflow-hidden">
+              <div className="absolute inset-0 bg-black/20"></div>
+              <Music className="w-8 h-8 text-white relative z-10" />
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-500/10 text-red-400 text-[10px] font-bold tracking-widest uppercase mb-2 border border-red-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span> Coming Soon
+              </div>
+              <h3 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">His Grace</h3>
+              <p className="text-neutral-400 text-sm font-medium mt-1">New Music dropping soon. Get ready.</p>
+            </div>
+          </div>
+          <div className="relative z-10 w-full md:w-auto shrink-0">
+            <button onClick={() => showToast("Pre-save activated! We'll notify you.")} className="w-full md:w-auto px-8 py-3.5 bg-white text-black font-bold rounded-full hover:bg-neutral-200 transition-all shadow-[0_0_30px_rgba(168,85,247,0.3)] hover:shadow-[0_0_40px_rgba(168,85,247,0.5)] flex items-center justify-center gap-2">
+               <Check className="w-5 h-5" /> Pre-Save Now
+            </button>
           </div>
         </div>
 
@@ -490,31 +515,45 @@ export default function App() {
                <div className="border border-dashed border-white/10 rounded-3xl p-16 flex flex-col items-center justify-center text-center bg-white/[0.02]">
                  <BookOpen className="w-12 h-12 text-neutral-600 mb-4" />
                  <h3 className="text-xl font-bold mb-2 text-white">No entries yet</h3>
-                 <p className="text-neutral-500 max-w-sm">Praiz hasn't written any diaries yet. Check back soon for personal updates.</p>
+                 <p className="text-neutral-500 max-w-sm">Praiz hasn't dropped any diaries or voice notes yet.</p>
                </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {diaryEntries.map(entry => (
-                  <div key={entry.id} className="bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-3xl p-6 transition-all duration-300 flex flex-col hover:-translate-y-1 hover:shadow-2xl hover:shadow-purple-900/10 cursor-pointer" onClick={() => setActiveDiary(entry)}>
+                  <div key={entry.id} className="bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-3xl p-6 transition-all duration-300 flex flex-col hover:-translate-y-1 hover:shadow-2xl hover:shadow-purple-900/10 cursor-pointer group" onClick={() => !entry.isAudio && setActiveDiary(entry)}>
                     <div className="flex items-center justify-between mb-4">
-                      <span className="text-xs font-semibold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-md border border-purple-500/20">
-                        {new Date(entry.uploadDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      <span className="text-xs font-semibold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-md border border-purple-500/20 flex items-center gap-1.5">
+                        {entry.isAudio ? <><Mic className="w-3 h-3"/> Voice Note</> : <><BookOpen className="w-3 h-3"/> Text Entry</>}
                       </span>
-                      <div className="flex items-center gap-3 text-neutral-500">
-                        <button onClick={(e) => { e.stopPropagation(); handleLike(entry); }} className={`hover:text-purple-400 transition-colors flex items-center gap-1 text-xs font-medium ${likedItems.includes(entry.id) ? 'text-purple-500' : ''}`}>
-                          <Heart className={`w-3.5 h-3.5 ${likedItems.includes(entry.id) ? 'fill-current' : ''}`} /> {entry.likes || 0}
-                        </button>
-                      </div>
+                      <span className="text-xs text-neutral-500 font-medium">
+                        {new Date(entry.uploadDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
                     </div>
+                    
                     <h3 className="text-xl font-bold text-white mb-3 line-clamp-2 leading-tight">{entry.title}</h3>
-                    <p className="text-neutral-400 text-sm line-clamp-3 mb-6 flex-1">{entry.content}</p>
+                    
+                    {/* Render Text or Audio Card */}
+                    {entry.isAudio ? (
+                      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-purple-500/5 rounded-2xl border border-purple-500/10 mb-4 group-hover:bg-purple-500/10 transition-colors">
+                        <button onClick={(e) => { e.stopPropagation(); handlePlayTrack(entry); }} className="w-14 h-14 rounded-full bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center transition-all shadow-lg shadow-purple-900/30 mb-3">
+                          {currentAudio?.id === entry.id && isPlaying ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 ml-1 fill-current" />}
+                        </button>
+                        <div className="flex items-center gap-1">
+                          <span className={`w-1 bg-purple-400 rounded-full ${currentAudio?.id === entry.id && isPlaying ? 'h-4 animate-[bounce_1s_infinite]' : 'h-2'}`}></span>
+                          <span className={`w-1 bg-purple-400 rounded-full ${currentAudio?.id === entry.id && isPlaying ? 'h-6 animate-[bounce_1s_infinite_0.2s]' : 'h-3'}`}></span>
+                          <span className={`w-1 bg-purple-400 rounded-full ${currentAudio?.id === entry.id && isPlaying ? 'h-3 animate-[bounce_1s_infinite_0.4s]' : 'h-1.5'}`}></span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-neutral-400 text-sm line-clamp-3 mb-6 flex-1">{entry.content}</p>
+                    )}
                     
                     <div className="flex items-center justify-between pt-4 border-t border-white/5 mt-auto">
-                      <span className="text-sm font-bold text-white flex items-center gap-1 group-hover:text-purple-400 transition-colors">
-                        Read Entry <SkipForward className="w-3 h-3" />
-                      </span>
+                      <button onClick={(e) => { e.stopPropagation(); handleLike(entry); }} className={`hover:text-purple-400 transition-colors flex items-center gap-1.5 text-sm font-medium ${likedItems.includes(entry.id) ? 'text-purple-500' : 'text-neutral-500'}`}>
+                        <Heart className={`w-4 h-4 ${likedItems.includes(entry.id) ? 'fill-current' : ''}`} /> {entry.likes || 0}
+                      </button>
                       <div className="flex gap-1">
-                        <button onClick={(e) => { e.stopPropagation(); handleShare(entry, 'Diary'); }} className="p-2 text-neutral-500 hover:text-white rounded-full transition-colors">
+                        <button onClick={(e) => { e.stopPropagation(); handleShare(entry, entry.isAudio ? 'Voice Note' : 'Diary'); }} className="p-2 text-neutral-500 hover:text-white rounded-full transition-colors">
                           <Share2 className="w-4 h-4" />
                         </button>
                         {isAdmin && (
@@ -534,7 +573,6 @@ export default function App() {
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="max-w-3xl mx-auto">
               
-              {/* Post a Message Form */}
               <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-6 md:p-8 mb-8">
                 <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
                   <MessageSquare className="w-5 h-5 text-purple-400" /> Leave a Message
@@ -575,7 +613,6 @@ export default function App() {
                 </form>
               </div>
 
-              {/* Messages Feed */}
               <div className="space-y-4">
                 {wallMessages.length === 0 ? (
                    <div className="text-center py-12 text-neutral-500">
@@ -701,14 +738,14 @@ export default function App() {
           <div className="flex items-center gap-4 w-full sm:w-1/3 min-w-0">
             <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shrink-0 shadow-lg shadow-purple-900/40 relative overflow-hidden">
                <div className="absolute inset-0 bg-black/20"></div>
-               <Music className={`w-6 h-6 text-white relative z-10 ${isPlaying ? 'animate-pulse' : ''}`} />
+               {currentAudio?.isDiary ? <Mic className={`w-6 h-6 text-white relative z-10 ${isPlaying ? 'animate-pulse' : ''}`} /> : <Music className={`w-6 h-6 text-white relative z-10 ${isPlaying ? 'animate-pulse' : ''}`} />}
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-bold text-white truncate text-base">{currentAudio?.title}</p>
               <div className="flex items-center gap-3 mt-0.5">
                  <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-400">
                    {isPlaying && <span className="flex gap-0.5 items-end h-3"><span className="w-0.5 h-full bg-purple-400 animate-[bounce_1s_infinite]"></span><span className="w-0.5 h-2/3 bg-purple-400 animate-[bounce_1s_infinite_0.2s]"></span><span className="w-0.5 h-full bg-purple-400 animate-[bounce_1s_infinite_0.4s]"></span></span>}
-                   Now Playing
+                   Now Playing {currentAudio?.isDiary && 'Voice Note'}
                  </div>
                  {currentAudio?.lyrics && (
                    <button onClick={() => setActiveLyrics(currentAudio)} className="text-xs font-medium text-neutral-400 hover:text-white transition-colors border border-white/10 rounded px-2 py-0.5 bg-white/5">View Lyrics</button>
@@ -750,9 +787,11 @@ export default function App() {
                   <button onClick={() => handleShare(currentAudio)} className="p-3 text-neutral-400 bg-white/5 hover:text-white hover:bg-white/10 rounded-full transition-all" title="Share">
                     <Share2 className="w-5 h-5" />
                   </button>
-                  <a href={currentAudio.url + '?download=' + encodeURIComponent(currentAudio.fileName)} download className="flex items-center gap-2 text-sm font-bold text-black bg-white hover:bg-neutral-200 px-6 py-3 rounded-full transition-all shadow-lg">
-                    <Download className="w-4 h-4" /> Download
-                  </a>
+                  {!currentAudio.isDiary && (
+                    <a href={currentAudio.url + '?download=' + encodeURIComponent(currentAudio.fileName)} download className="flex items-center gap-2 text-sm font-bold text-black bg-white hover:bg-neutral-200 px-6 py-3 rounded-full transition-all shadow-lg">
+                      <Download className="w-4 h-4" /> Download
+                    </a>
+                  )}
                 </>
              )}
           </div>
@@ -774,6 +813,7 @@ export default function App() {
 
 function UploadModal({ onClose, onUploadSuccess }) {
   const [tab, setTab] = useState('media'); // 'media' or 'diary'
+  const [diaryMode, setDiaryMode] = useState('text'); // 'text' or 'voice'
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
   const [lyrics, setLyrics] = useState('');
@@ -781,6 +821,15 @@ function UploadModal({ onClose, onUploadSuccess }) {
   const [isFeaturedVideo, setIsFeaturedVideo] = useState(false);
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+
+  // Voice Note States
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceEffect, setVoiceEffect] = useState('none');
+  const [voiceBlob, setVoiceBlob] = useState(null);
+  const [voiceUrl, setVoiceUrl] = useState('');
+  const audioCtxRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -793,6 +842,78 @@ function UploadModal({ onClose, onUploadSuccess }) {
     }
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const dest = ctx.createMediaStreamDestination();
+
+      // Apply Voice FX
+      if (voiceEffect === 'echo') {
+        const delay = ctx.createDelay();
+        delay.delayTime.value = 0.3;
+        const feedback = ctx.createGain();
+        feedback.gain.value = 0.4;
+        source.connect(delay);
+        delay.connect(feedback);
+        feedback.connect(delay);
+        delay.connect(dest);
+        source.connect(dest);
+      } else if (voiceEffect === 'radio') {
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1000;
+        source.connect(filter);
+        filter.connect(dest);
+      } else if (voiceEffect === 'studio') {
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowshelf';
+        filter.frequency.value = 200;
+        filter.gain.value = 10;
+        source.connect(filter);
+        filter.connect(dest);
+      } else {
+        source.connect(dest);
+      }
+
+      const recorder = new MediaRecorder(dest.stream);
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current);
+        setVoiceBlob(blob);
+        setVoiceUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t => t.stop());
+        if (ctx.state !== 'closed') ctx.close();
+      };
+
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Mic error:", err);
+      setError("Microphone access denied. Please allow mic permissions.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const clearRecording = () => {
+    setVoiceBlob(null);
+    setVoiceUrl('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim()) return setError('Please provide a title.');
@@ -802,28 +923,47 @@ function UploadModal({ onClose, onUploadSuccess }) {
     setError('');
 
     try {
-      if (tab === 'media') {
-        if (!file) throw new Error('Please select a file to upload.');
-        const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const storagePath = `${Date.now()}_${safeFileName}`;
+      let publicUrl = '';
+      let storagePath = '';
+      let finalFileSize = 0;
+      let finalIsAudio = false;
+
+      // Handle File/Blob Upload to Storage
+      if (tab === 'media' || (tab === 'diary' && diaryMode === 'voice')) {
+        const uploadFile = tab === 'media' ? file : voiceBlob;
+        if (!uploadFile) throw new Error(tab === 'media' ? 'Please select a file.' : 'Please record a voice note.');
         
-        const { error: uploadError } = await supabase.storage.from('uploads').upload(storagePath, file);
+        const fileNameBase = tab === 'media' ? file.name : 'voicenote.webm';
+        const safeFileName = fileNameBase.replace(/[^a-zA-Z0-9.-]/g, '_');
+        storagePath = `${tab === 'media' ? 'uploads' : 'voice_notes'}/${Date.now()}_${safeFileName}`;
+        
+        const { error: uploadError } = await supabase.storage.from('uploads').upload(storagePath, uploadFile);
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(storagePath);
-          
-        const isAudio = file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3') || file.name.toLowerCase().endsWith('.wav');
+        const { data } = supabase.storage.from('uploads').getPublicUrl(storagePath);
+        publicUrl = data.publicUrl;
+        finalFileSize = uploadFile.size;
+        
+        if (tab === 'media') {
+          finalIsAudio = file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3') || file.name.toLowerCase().endsWith('.wav');
+        } else {
+          finalIsAudio = true; // Voice notes are always audio
+        }
+      }
 
+      // Handle Database Insertion
+      if (tab === 'media') {
         const fileData = {
           title: title.trim(),
           fileName: file.name,
           fileType: file.type || 'unknown',
-          size: file.size,
+          size: finalFileSize,
           url: publicUrl,
           storagePath: storagePath,
-          isAudio: isAudio,
+          isAudio: finalIsAudio,
           lyrics: lyrics.trim() || null,
           isFeaturedVideo: isFeaturedVideo,
+          isDiary: false,
           plays: 0,
           likes: 0
         };
@@ -834,15 +974,18 @@ function UploadModal({ onClose, onUploadSuccess }) {
 
       } else {
         // Diary Upload
-        if (!diaryContent.trim()) throw new Error('Diary content cannot be empty.');
+        if (diaryMode === 'text' && !diaryContent.trim()) throw new Error('Diary content cannot be empty.');
         
         const diaryData = {
           title: title.trim(),
-          fileName: 'diary_entry',
-          url: '',
-          storagePath: '',
+          fileName: diaryMode === 'voice' ? 'voicenote.webm' : 'diary_entry',
+          fileType: diaryMode === 'voice' ? 'audio/webm' : 'text',
+          size: diaryMode === 'voice' ? finalFileSize : 0,
+          url: diaryMode === 'voice' ? publicUrl : '',
+          storagePath: diaryMode === 'voice' ? storagePath : '',
+          isAudio: diaryMode === 'voice',
           isDiary: true,
-          content: diaryContent.trim(),
+          content: diaryMode === 'text' ? diaryContent.trim() : 'Voice Note Diary',
           plays: 0,
           likes: 0
         };
@@ -867,7 +1010,7 @@ function UploadModal({ onClose, onUploadSuccess }) {
         <div className="p-6 border-b border-white/5 flex flex-col shrink-0 gap-4">
           <div className="flex items-center justify-between">
              <h2 className="text-2xl font-bold text-white">Create New</h2>
-             {!isUploading && (
+             {!isUploading && !isRecording && (
                <button onClick={onClose} className="p-2 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
                  <X className="w-5 h-5" />
                </button>
@@ -883,7 +1026,7 @@ function UploadModal({ onClose, onUploadSuccess }) {
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-bold text-neutral-300 mb-2">{tab === 'media' ? 'Track / Video Title' : 'Diary Entry Title'}</label>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tab === 'media' ? "e.g. Midnight Groove" : "e.g. Thoughts on the new album"} disabled={isUploading} className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50 transition-colors" />
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tab === 'media' ? "e.g. Midnight Groove" : "e.g. Thoughts on the new album"} disabled={isUploading || isRecording} className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50 transition-colors" />
             </div>
             
             {tab === 'media' ? (
@@ -918,9 +1061,62 @@ function UploadModal({ onClose, onUploadSuccess }) {
                 )}
               </>
             ) : (
-              <div>
-                <label className="block text-sm font-bold text-neutral-300 mb-2">Diary Content</label>
-                <textarea value={diaryContent} onChange={(e) => setDiaryContent(e.target.value)} placeholder="Write your thoughts here..." disabled={isUploading} rows={10} className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50 resize-none transition-colors" />
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <button type="button" onClick={() => setDiaryMode('text')} disabled={isRecording || isUploading} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${diaryMode === 'text' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-black text-neutral-500 hover:text-white border border-white/5'}`}><AlignLeft className="w-4 h-4"/> Text</button>
+                  <button type="button" onClick={() => setDiaryMode('voice')} disabled={isRecording || isUploading} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${diaryMode === 'voice' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-black text-neutral-500 hover:text-white border border-white/5'}`}><Mic className="w-4 h-4"/> Voice Note</button>
+                </div>
+
+                {diaryMode === 'text' ? (
+                  <textarea value={diaryContent} onChange={(e) => setDiaryContent(e.target.value)} placeholder="Write your thoughts here..." disabled={isUploading} rows={8} className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50 resize-none transition-colors" />
+                ) : (
+                  <div className="bg-black border border-white/10 rounded-xl p-6 text-center space-y-6">
+                    
+                    {!voiceBlob && !isRecording && (
+                      <div className="flex flex-col items-center gap-4">
+                        <label className="text-sm font-bold text-neutral-400">Select Voice FX</label>
+                        <div className="flex gap-2">
+                           <button type="button" onClick={() => setVoiceEffect('none')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${voiceEffect === 'none' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}>Raw</button>
+                           <button type="button" onClick={() => setVoiceEffect('studio')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${voiceEffect === 'studio' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}><Speaker className="w-3.5 h-3.5"/> Studio</button>
+                           <button type="button" onClick={() => setVoiceEffect('radio')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${voiceEffect === 'radio' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}><Radio className="w-3.5 h-3.5"/> Radio</button>
+                           <button type="button" onClick={() => setVoiceEffect('echo')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${voiceEffect === 'echo' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}>Echo</button>
+                        </div>
+                        <button type="button" onClick={startRecording} className="mt-4 w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+                           <Mic className="w-6 h-6" />
+                        </button>
+                        <p className="text-sm text-neutral-500">Tap to start recording</p>
+                      </div>
+                    )}
+
+                    {isRecording && (
+                      <div className="flex flex-col items-center gap-4 py-4">
+                        <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-white animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.6)]">
+                           <Mic className="w-6 h-6" />
+                        </div>
+                        <p className="text-red-400 font-bold tracking-widest uppercase text-sm flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-red-500"></span> Recording (FX: {voiceEffect})
+                        </p>
+                        <button type="button" onClick={stopRecording} className="mt-2 px-6 py-2.5 bg-white text-black font-bold rounded-full hover:bg-neutral-200 flex items-center gap-2">
+                           <Square className="w-4 h-4 fill-current" /> Stop
+                        </button>
+                      </div>
+                    )}
+
+                    {voiceBlob && !isRecording && (
+                      <div className="flex flex-col items-center gap-4 py-2">
+                        <div className="w-full bg-neutral-900 p-4 rounded-xl border border-white/5 flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white shrink-0">
+                            <Mic className="w-4 h-4" />
+                          </div>
+                          <audio src={voiceUrl} controls className="w-full h-10 custom-audio" />
+                        </div>
+                        <button type="button" onClick={clearRecording} disabled={isUploading} className="text-sm text-red-400 hover:text-red-300 font-medium">
+                          Trash & Record Again
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -928,8 +1124,8 @@ function UploadModal({ onClose, onUploadSuccess }) {
           </div>
           
           <div className="mt-8 flex items-center justify-end gap-3 pt-6 border-t border-white/5">
-            <button type="button" onClick={onClose} disabled={isUploading} className="px-6 py-3 rounded-xl font-bold text-neutral-400 hover:text-white hover:bg-white/5 disabled:opacity-50 transition-colors">Cancel</button>
-            <button type="submit" disabled={isUploading || (tab==='media' && !file)} className="px-8 py-3 rounded-xl font-bold bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 flex items-center gap-2 transition-all shadow-lg shadow-purple-900/30">
+            <button type="button" onClick={onClose} disabled={isUploading || isRecording} className="px-6 py-3 rounded-xl font-bold text-neutral-400 hover:text-white hover:bg-white/5 disabled:opacity-50 transition-colors">Cancel</button>
+            <button type="submit" disabled={isUploading || isRecording || (tab==='media' && !file) || (tab==='diary' && diaryMode==='voice' && !voiceBlob)} className="px-8 py-3 rounded-xl font-bold bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 flex items-center gap-2 transition-all shadow-lg shadow-purple-900/30">
               {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> Publishing...</> : <><PenTool className="w-5 h-5" /> Publish</>}
             </button>
           </div>
