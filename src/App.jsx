@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Play, Pause, SkipBack, SkipForward, Download, Upload, Music, 
   Trash2, X, Plus, Disc3, Lock, LogOut, FileArchive, 
-  Loader2, AlignLeft, Share2, Check, Heart, Headphones, BookOpen, PenTool, Video, MessageSquare, Mail, Send, User, Mic, Square, Radio, Speaker
+  Loader2, AlignLeft, Share2, Check, Heart, Headphones, BookOpen, PenTool, Video, MessageSquare, Mail, Send, User, Mic, Square, Radio, Speaker, Image as ImageIcon
 } from 'lucide-react';
 
 import { createClient } from '@supabase/supabase-js';
@@ -276,7 +276,10 @@ export default function App() {
     if (!window.confirm(`Are you sure you want to delete "${file.title}"?`)) return;
     try {
       if (file.storagePath) {
-        const { error: storageError } = await supabase.storage.from('uploads').remove([file.storagePath]);
+        const pathsToRemove = [file.storagePath];
+        if (file.coverArtStoragePath) pathsToRemove.push(file.coverArtStoragePath);
+        
+        const { error: storageError } = await supabase.storage.from('uploads').remove(pathsToRemove);
         if (storageError) throw storageError;
       }
       const { error: dbError } = await supabase.from('files').delete().eq('id', file.id);
@@ -457,12 +460,23 @@ export default function App() {
                       <div className="flex items-center gap-4 flex-1 min-w-0">
                         <div className="w-12 h-12 shrink-0">
                           {file.isAudio ? (
-                            <button onClick={() => handlePlayTrack(file)} className={`w-full h-full flex items-center justify-center rounded-xl transition-all shadow-lg ${isThisPlaying ? 'bg-purple-500 text-white shadow-purple-500/20' : 'bg-neutral-800 text-neutral-300 group-hover:bg-white group-hover:text-black'}`}>
-                              {isThisPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-1" />}
+                            <button onClick={() => handlePlayTrack(file)} className={`w-full h-full flex items-center justify-center rounded-xl transition-all shadow-lg relative overflow-hidden group/btn ${isThisPlaying ? 'ring-2 ring-purple-500 shadow-purple-500/20 text-white' : 'text-neutral-300 hover:text-white'}`}>
+                              {file.coverArtUrl ? (
+                                <>
+                                  <img src={file.coverArtUrl} alt="Cover" className="absolute inset-0 w-full h-full object-cover transition-all duration-300" />
+                                  <div className={`absolute inset-0 transition-opacity duration-300 ${isThisPlaying ? 'bg-black/60' : 'bg-black/40 group-hover/btn:bg-black/60'}`}></div>
+                                </>
+                              ) : (
+                                <div className={`absolute inset-0 transition-colors ${isThisPlaying ? 'bg-purple-500' : 'bg-neutral-800 group-hover/btn:bg-neutral-700'}`}></div>
+                              )}
+                              <div className="relative z-10">
+                                {isThisPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 ml-1 fill-current" />}
+                              </div>
                             </button>
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center rounded-xl bg-neutral-800 text-neutral-400">
-                              <FileArchive className="w-5 h-5" />
+                            <div className="w-full h-full flex items-center justify-center rounded-xl bg-neutral-800 text-neutral-400 relative overflow-hidden">
+                              {file.coverArtUrl && <img src={file.coverArtUrl} className="absolute inset-0 w-full h-full object-cover opacity-40" alt="Cover" />}
+                              <FileArchive className="w-5 h-5 relative z-10" />
                             </div>
                           )}
                         </div>
@@ -767,8 +781,15 @@ export default function App() {
           
           <div className="flex items-center gap-4 w-full sm:w-1/3 min-w-0">
             <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shrink-0 shadow-lg shadow-purple-900/40 relative overflow-hidden">
-               <div className="absolute inset-0 bg-black/20"></div>
-               {currentAudio?.isDiary ? <Mic className={`w-6 h-6 text-white relative z-10 ${isPlaying ? 'animate-pulse' : ''}`} /> : <Music className={`w-6 h-6 text-white relative z-10 ${isPlaying ? 'animate-pulse' : ''}`} />}
+               {currentAudio?.coverArtUrl ? (
+                 <img src={currentAudio.coverArtUrl} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />
+               ) : (
+                 <div className="absolute inset-0 bg-black/20"></div>
+               )}
+               <div className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${isPlaying ? 'opacity-100' : 'opacity-0'}`}></div>
+               {!currentAudio?.coverArtUrl && (
+                 currentAudio?.isDiary ? <Mic className={`w-6 h-6 text-white relative z-10 ${isPlaying ? 'animate-pulse' : ''}`} /> : <Music className={`w-6 h-6 text-white relative z-10 ${isPlaying ? 'animate-pulse' : ''}`} />
+               )}
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-bold text-white truncate text-base">
@@ -853,6 +874,11 @@ function UploadModal({ onClose, onUploadSuccess }) {
   const [diaryMode, setDiaryMode] = useState('text'); // 'text' or 'voice'
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
+  
+  // Cover Art States
+  const [coverArtFile, setCoverArtFile] = useState(null);
+  const [coverArtPreview, setCoverArtPreview] = useState('');
+
   const [lyrics, setLyrics] = useState('');
   const [diaryContent, setDiaryContent] = useState('');
   const [isFeaturedVideo, setIsFeaturedVideo] = useState(false);
@@ -884,13 +910,19 @@ function UploadModal({ onClose, onUploadSuccess }) {
     }
   };
 
+  const handleCoverArtChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setCoverArtFile(selectedFile);
+      setCoverArtPreview(URL.createObjectURL(selectedFile));
+    }
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       let streamToRecord = stream;
 
-      // Only route through Web Audio API if we are actually using an effect.
-      // This bypasses the Safari/Chrome 5-second duration bugs for standard recordings.
       if (voiceEffect !== 'none') {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (ctx.state === 'suspended') await ctx.resume();
@@ -898,7 +930,6 @@ function UploadModal({ onClose, onUploadSuccess }) {
         const source = ctx.createMediaStreamSource(stream);
         const dest = ctx.createMediaStreamDestination();
 
-        // Apply Voice FX
         if (voiceEffect === 'echo') {
           const delay = ctx.createDelay();
           delay.delayTime.value = 0.3;
@@ -926,7 +957,6 @@ function UploadModal({ onClose, onUploadSuccess }) {
         streamToRecord = dest.stream;
       }
 
-      // Find best supported format for the browser
       const options = {};
       if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
         options.mimeType = 'audio/webm;codecs=opus';
@@ -947,14 +977,13 @@ function UploadModal({ onClose, onUploadSuccess }) {
         const blob = new Blob(chunksRef.current, { type: mimeType });
         setVoiceBlob(blob);
         setVoiceUrl(URL.createObjectURL(blob));
-        // Stop the physical microphone
         stream.getTracks().forEach(t => t.stop());
         if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
            audioCtxRef.current.close();
         }
       };
 
-      recorder.start(); // Recording in one continuous chunk prevents duration header bugs
+      recorder.start(); 
       setIsRecording(true);
     } catch (err) {
       console.error("Mic error:", err);
@@ -964,7 +993,6 @@ function UploadModal({ onClose, onUploadSuccess }) {
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
-      // Request remaining data before stopping to prevent 0-byte cuts
       try { mediaRecorderRef.current.requestData(); } catch (e) {}
       setTimeout(() => {
         mediaRecorderRef.current.stop();
@@ -992,7 +1020,28 @@ function UploadModal({ onClose, onUploadSuccess }) {
       let finalFileSize = 0;
       let finalIsAudio = false;
 
-      // Handle File/Blob Upload to Storage
+      // Variables for cover art
+      let coverArtPublicUrl = null;
+      let coverArtPath = null;
+
+      // 1. Upload Cover Art (if provided)
+      if (coverArtFile && tab === 'media' && !isFeaturedVideo) {
+        const coverExt = coverArtFile.name.split('.').pop() || 'png';
+        const safeCoverName = `cover_${Date.now()}.${coverExt}`;
+        coverArtPath = `uploads/${safeCoverName}`;
+        
+        const { error: coverUploadError } = await supabase.storage.from('uploads').upload(coverArtPath, coverArtFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+        
+        if (coverUploadError) throw coverUploadError;
+        
+        const { data: coverData } = supabase.storage.from('uploads').getPublicUrl(coverArtPath);
+        coverArtPublicUrl = coverData.publicUrl;
+      }
+
+      // 2. Handle File/Blob Upload to Storage
       if (tab === 'media' || (tab === 'diary' && diaryMode === 'voice')) {
         let uploadFile = tab === 'media' ? file : voiceBlob;
         if (!uploadFile) throw new Error(tab === 'media' ? 'Please select a file.' : 'Please record a voice note.');
@@ -1005,7 +1054,6 @@ function UploadModal({ onClose, onUploadSuccess }) {
         const safeFileName = fileNameBase.replace(/[^a-zA-Z0-9.-]/g, '_');
         storagePath = `${tab === 'media' ? 'uploads' : 'voice_notes'}/${Date.now()}_${safeFileName}`;
         
-        // Supabase upload works best with native File objects with specific mime types
         if (tab === 'diary') {
           uploadFile = new File([voiceBlob], safeFileName, { type: mimeType });
         }
@@ -1025,11 +1073,11 @@ function UploadModal({ onClose, onUploadSuccess }) {
         if (tab === 'media') {
           finalIsAudio = file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3') || file.name.toLowerCase().endsWith('.wav');
         } else {
-          finalIsAudio = true; // Voice notes are always audio
+          finalIsAudio = true; 
         }
       }
 
-      // Handle Database Insertion
+      // 3. Handle Database Insertion
       if (tab === 'media') {
         const fileData = {
           title: title.trim(),
@@ -1043,6 +1091,8 @@ function UploadModal({ onClose, onUploadSuccess }) {
           isFeaturedVideo: isFeaturedVideo,
           isDiary: false,
           isPreview: isPreview,
+          coverArtUrl: coverArtPublicUrl,          // Save cover art URL
+          coverArtStoragePath: coverArtPath,       // Save path for deletion
           plays: 0,
           likes: 0
         };
@@ -1052,7 +1102,6 @@ function UploadModal({ onClose, onUploadSuccess }) {
         onUploadSuccess(insertedData);
 
       } else {
-        // Diary Upload
         if (diaryMode === 'text' && !diaryContent.trim()) throw new Error('Diary content cannot be empty.');
         
         const diaryData = {
@@ -1110,6 +1159,7 @@ function UploadModal({ onClose, onUploadSuccess }) {
             
             {tab === 'media' ? (
               <>
+                {/* Media File Upload */}
                 <div>
                   <label className="block text-sm font-bold text-neutral-300 mb-2">Media File</label>
                   <div className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${isUploading ? 'border-white/5 bg-black' : 'border-white/10 hover:border-purple-500/50 cursor-pointer bg-black/50 group'}`}>
@@ -1134,11 +1184,34 @@ function UploadModal({ onClose, onUploadSuccess }) {
 
                 {!isFeaturedVideo && (
                   <>
+                    {/* Cover Art Upload */}
+                    <div>
+                      <label className="block text-sm font-bold text-neutral-300 mb-2">Cover Art (Optional)</label>
+                      <div className="flex items-center gap-4">
+                         {coverArtPreview ? (
+                            <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border border-white/10 relative group">
+                               <img src={coverArtPreview} className="w-full h-full object-cover" alt="Cover Preview" />
+                               <button type="button" onClick={() => { setCoverArtFile(null); setCoverArtPreview(''); }} className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-red-400">
+                                 <X className="w-5 h-5"/>
+                               </button>
+                            </div>
+                         ) : (
+                            <div className="w-20 h-20 rounded-xl border border-dashed border-white/20 flex items-center justify-center shrink-0 bg-black/50 text-neutral-500">
+                               <ImageIcon className="w-6 h-6" />
+                            </div>
+                         )}
+                         <div className="flex-1">
+                            <input type="file" accept="image/*" onChange={handleCoverArtChange} disabled={isUploading} className="block w-full text-sm text-neutral-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-500/10 file:text-purple-400 hover:file:bg-purple-500/20 cursor-pointer transition-colors" />
+                            <p className="text-xs text-neutral-500 mt-2 font-medium">Recommended: Square image (1:1 ratio).</p>
+                         </div>
+                      </div>
+                    </div>
+
                     <div className="flex items-center gap-3 bg-black p-4 rounded-xl border border-white/5 mt-4">
                       <input type="checkbox" id="previewTrack" checked={isPreview} onChange={(e) => setIsPreview(e.target.checked)} disabled={isUploading} className="w-5 h-5 accent-orange-500 bg-neutral-800 border-neutral-700 rounded cursor-pointer" />
                       <label htmlFor="previewTrack" className="text-sm font-bold text-white cursor-pointer flex-1">
                         Mark as Preview / Teaser
-                        <span className="block text-xs text-neutral-500 mt-1 font-medium">Adds a "PREVIEW" badge and disables the download button. (Upload a short cut of your song!)</span>
+                        <span className="block text-xs text-neutral-500 mt-1 font-medium">Adds a "PREVIEW" badge and disables the download button.</span>
                       </label>
                     </div>
 
