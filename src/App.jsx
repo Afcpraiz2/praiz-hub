@@ -17,7 +17,6 @@ if (supabaseUrl && supabaseKey) {
 } else {
   console.error("Supabase initialization error. Check your .env file.");
 }
-
 export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
@@ -534,14 +533,37 @@ export default function App() {
                     
                     {/* Render Text or Audio Card */}
                     {entry.isAudio ? (
-                      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-purple-500/5 rounded-2xl border border-purple-500/10 mb-4 group-hover:bg-purple-500/10 transition-colors">
-                        <button onClick={(e) => { e.stopPropagation(); handlePlayTrack(entry); }} className="w-14 h-14 rounded-full bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center transition-all shadow-lg shadow-purple-900/30 mb-3">
-                          {currentAudio?.id === entry.id && isPlaying ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 ml-1 fill-current" />}
-                        </button>
-                        <div className="flex items-center gap-1">
-                          <span className={`w-1 bg-purple-400 rounded-full ${currentAudio?.id === entry.id && isPlaying ? 'h-4 animate-[bounce_1s_infinite]' : 'h-2'}`}></span>
-                          <span className={`w-1 bg-purple-400 rounded-full ${currentAudio?.id === entry.id && isPlaying ? 'h-6 animate-[bounce_1s_infinite_0.2s]' : 'h-3'}`}></span>
-                          <span className={`w-1 bg-purple-400 rounded-full ${currentAudio?.id === entry.id && isPlaying ? 'h-3 animate-[bounce_1s_infinite_0.4s]' : 'h-1.5'}`}></span>
+                      <div className="flex-1 flex flex-col justify-center py-2 mb-4">
+                        <div className={`relative p-4 rounded-2xl border transition-all overflow-hidden flex items-center gap-3 ${currentAudio?.id === entry.id ? 'bg-purple-500/10 border-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.1)]' : 'bg-black/40 border-white/5 group-hover:border-white/10 group-hover:bg-black/60'}`}>
+                          {currentAudio?.id === entry.id && isPlaying && (
+                             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-indigo-500/5 animate-pulse"></div>
+                          )}
+                          <button onClick={(e) => { e.stopPropagation(); handlePlayTrack(entry); }} className="relative z-10 w-12 h-12 shrink-0 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white flex items-center justify-center transition-all shadow-lg shadow-purple-900/50 hover:scale-105">
+                            {currentAudio?.id === entry.id && isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 ml-1 fill-current" />}
+                          </button>
+                          
+                          <div className="flex-1 flex items-center gap-[3px] h-10 relative z-10 mx-1">
+                            {/* Premium Interactive Waveform */}
+                            {[30, 45, 60, 40, 75, 55, 85, 65, 40, 90, 70, 50, 80, 45, 60, 35, 75, 50, 85, 60, 40, 65, 30, 45].map((h, i) => {
+                              const isPlayingThis = currentAudio?.id === entry.id;
+                              const fillPercentage = isPlayingThis && duration > 0 ? (progress / duration) * 100 : 0;
+                              const barPercentage = (i / 24) * 100;
+                              const isFilled = isPlayingThis && barPercentage <= fillPercentage;
+
+                              return (
+                                <div key={i} className="flex-1 flex items-end h-full justify-center">
+                                   <div 
+                                     className={`w-full max-w-[4px] rounded-full transition-colors duration-150 ${isFilled ? 'bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]' : 'bg-white/10 group-hover:bg-white/20'} ${isPlayingThis && isPlaying && isFilled && i % 4 === 0 ? 'animate-pulse' : ''}`} 
+                                     style={{ height: `${h}%` }}
+                                   ></div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          
+                          <div className="text-xs font-mono font-bold relative z-10 shrink-0 min-w-[36px] text-right text-purple-400">
+                             {currentAudio?.id === entry.id ? formatTime(progress) : <span className="text-neutral-500 group-hover:text-purple-400/70 transition-colors">Play</span>}
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -846,6 +868,7 @@ function UploadModal({ onClose, onUploadSuccess }) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') await ctx.resume();
       audioCtxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
       const dest = ctx.createMediaStreamDestination();
@@ -883,22 +906,23 @@ function UploadModal({ onClose, onUploadSuccess }) {
       chunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current);
+        const mimeType = recorder.mimeType || 'audio/webm';
+        const blob = new Blob(chunksRef.current, { type: mimeType });
         setVoiceBlob(blob);
         setVoiceUrl(URL.createObjectURL(blob));
         stream.getTracks().forEach(t => t.stop());
         if (ctx.state !== 'closed') ctx.close();
       };
 
-      recorder.start();
+      recorder.start(200); // 200ms time slices fixes the 0-byte bug on iOS/Safari
       setIsRecording(true);
     } catch (err) {
       console.error("Mic error:", err);
-      setError("Microphone access denied. Please allow mic permissions.");
+      setError("Microphone access denied or incompatible browser.");
     }
   };
 
@@ -930,14 +954,28 @@ function UploadModal({ onClose, onUploadSuccess }) {
 
       // Handle File/Blob Upload to Storage
       if (tab === 'media' || (tab === 'diary' && diaryMode === 'voice')) {
-        const uploadFile = tab === 'media' ? file : voiceBlob;
+        let uploadFile = tab === 'media' ? file : voiceBlob;
         if (!uploadFile) throw new Error(tab === 'media' ? 'Please select a file.' : 'Please record a voice note.');
+        if (uploadFile.size === 0) throw new Error('Recording failed (0 bytes). Try using "Raw" FX or a different browser.');
         
-        const fileNameBase = tab === 'media' ? file.name : 'voicenote.webm';
+        let mimeType = tab === 'media' ? (file.type || 'audio/mpeg') : (voiceBlob.type || 'audio/webm');
+        let ext = tab === 'media' ? file.name.split('.').pop() : (mimeType.includes('mp4') ? 'mp4' : 'webm');
+        
+        const fileNameBase = tab === 'media' ? file.name : `voicenote.${ext}`;
         const safeFileName = fileNameBase.replace(/[^a-zA-Z0-9.-]/g, '_');
         storagePath = `${tab === 'media' ? 'uploads' : 'voice_notes'}/${Date.now()}_${safeFileName}`;
         
-        const { error: uploadError } = await supabase.storage.from('uploads').upload(storagePath, uploadFile);
+        // Supabase upload works best with native File objects with specific mime types
+        if (tab === 'diary') {
+          uploadFile = new File([voiceBlob], safeFileName, { type: mimeType });
+        }
+        
+        const { error: uploadError } = await supabase.storage.from('uploads').upload(storagePath, uploadFile, {
+          contentType: mimeType,
+          cacheControl: '3600',
+          upsert: false
+        });
+        
         if (uploadError) throw uploadError;
 
         const { data } = supabase.storage.from('uploads').getPublicUrl(storagePath);
@@ -1104,14 +1142,21 @@ function UploadModal({ onClose, onUploadSuccess }) {
 
                     {voiceBlob && !isRecording && (
                       <div className="flex flex-col items-center gap-4 py-2">
-                        <div className="w-full bg-neutral-900 p-4 rounded-xl border border-white/5 flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white shrink-0">
-                            <Mic className="w-4 h-4" />
+                        <div className="w-full bg-gradient-to-r from-purple-900/20 to-indigo-900/20 p-6 rounded-3xl border border-purple-500/20 flex flex-col items-center gap-4 shadow-inner">
+                          <div className="w-14 h-14 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 relative overflow-hidden">
+                            <div className="absolute inset-0 bg-purple-500/10 animate-pulse"></div>
+                            <Mic className="w-6 h-6 relative z-10" />
                           </div>
-                          <audio src={voiceUrl} controls className="w-full h-10 custom-audio" />
+                          <div className="text-center">
+                            <h4 className="font-bold text-white text-base">Voice Note Ready</h4>
+                            <p className="text-xs text-purple-400 font-bold uppercase tracking-widest mt-1">FX Applied: {voiceEffect}</p>
+                          </div>
+                          <div className="w-full bg-black/60 p-3 rounded-2xl border border-white/5 mt-2 shadow-lg">
+                            <audio src={voiceUrl} controls className="w-full h-10 outline-none" />
+                          </div>
                         </div>
-                        <button type="button" onClick={clearRecording} disabled={isUploading} className="text-sm text-red-400 hover:text-red-300 font-medium">
-                          Trash & Record Again
+                        <button type="button" onClick={clearRecording} disabled={isUploading} className="text-sm text-red-400 hover:text-red-300 font-bold flex items-center gap-1.5 px-5 py-2.5 rounded-full hover:bg-red-400/10 transition-colors">
+                          <Trash2 className="w-4 h-4"/> Trash & Record Again
                         </button>
                       </div>
                     )}
