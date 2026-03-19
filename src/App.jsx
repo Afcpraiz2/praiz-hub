@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Play, Pause, SkipBack, SkipForward, Download, Upload, Music, 
   Trash2, X, Plus, Disc3, Lock, LogOut, FileArchive, 
-  Loader2, AlignLeft, Share2, Check, Heart, Headphones, BookOpen, PenTool, Video, MessageSquare, Mail, Send, User, Mic, Square, Radio, Speaker, Image as ImageIcon
+  Loader2, AlignLeft, Share2, Check, Heart, Headphones, BookOpen, PenTool, Video, MessageSquare, Mail, Send, User, Mic, Square, Radio, Speaker, Image as ImageIcon, Edit2
 } from 'lucide-react';
 
 import { createClient } from '@supabase/supabase-js';
@@ -37,6 +37,7 @@ export default function App() {
   
   // UI States
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [editingFile, setEditingFile] = useState(null);
   const [activeLyrics, setActiveLyrics] = useState(null); 
   const [activeDiary, setActiveDiary] = useState(null); 
   const [toastMessage, setToastMessage] = useState(''); 
@@ -272,6 +273,11 @@ export default function App() {
     handlePlayTrack(audioFiles[prevIndex]);
   };
 
+  const openEditModal = (item) => {
+    setEditingFile(item);
+    setIsUploadModalOpen(true);
+  };
+
   const deleteFile = async (file) => {
     if (!window.confirm(`Are you sure you want to delete "${file.title}"?`)) return;
     try {
@@ -366,9 +372,14 @@ export default function App() {
             )}
             
             {isAdmin && featuredVideo && (
-              <button onClick={() => deleteFile(featuredVideo)} className="absolute top-4 right-4 bg-black/60 backdrop-blur p-2 rounded-full text-red-400 hover:text-red-300 transition z-10">
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+                <button onClick={() => openEditModal(featuredVideo)} className="bg-black/60 backdrop-blur p-2 rounded-full text-blue-400 hover:text-blue-300 transition">
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button onClick={() => deleteFile(featuredVideo)} className="bg-black/60 backdrop-blur p-2 rounded-full text-red-400 hover:text-red-300 transition">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             )}
           </div>
 
@@ -518,9 +529,14 @@ export default function App() {
                           </a>
                         )}
                         {isAdmin && (
-                          <button onClick={() => deleteFile(file)} className="p-2.5 text-neutral-500 hover:text-red-400 hover:bg-red-400/10 rounded-full transition-colors ml-1" title="Delete">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button onClick={() => openEditModal(file)} className="p-2.5 text-neutral-500 hover:text-blue-400 hover:bg-blue-400/10 rounded-full transition-colors ml-1" title="Edit">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => deleteFile(file)} className="p-2.5 text-neutral-500 hover:text-red-400 hover:bg-red-400/10 rounded-full transition-colors ml-1" title="Delete">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -601,9 +617,14 @@ export default function App() {
                           <Share2 className="w-4 h-4" />
                         </button>
                         {isAdmin && (
-                          <button onClick={(e) => { e.stopPropagation(); deleteFile(entry); }} className="p-2 text-neutral-500 hover:text-red-400 rounded-full transition-colors">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button onClick={(e) => { e.stopPropagation(); openEditModal(entry); }} className="p-2 text-neutral-500 hover:text-blue-400 rounded-full transition-colors">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); deleteFile(entry); }} className="p-2 text-neutral-500 hover:text-red-400 rounded-full transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -767,10 +788,21 @@ export default function App() {
       {/* Smart Upload/Create Modal */}
       {isUploadModalOpen && isAdmin && (
         <UploadModal 
-          onClose={() => setIsUploadModalOpen(false)}
+          editingItem={editingFile}
+          onClose={() => {
+            setIsUploadModalOpen(false);
+            setEditingFile(null);
+          }}
           onUploadSuccess={(newItem) => {
             setFiles([newItem, ...files]);
             showToast("Successfully published!");
+          }}
+          onUpdateSuccess={(updatedItem) => {
+            setFiles(files.map(f => f.id === updatedItem.id ? updatedItem : f));
+            if (currentAudio?.id === updatedItem.id) {
+              setCurrentAudio({...currentAudio, ...updatedItem});
+            }
+            showToast("Successfully updated!");
           }}
         />
       )}
@@ -869,20 +901,20 @@ export default function App() {
   );
 }
 
-function UploadModal({ onClose, onUploadSuccess }) {
-  const [tab, setTab] = useState('media'); // 'media' or 'diary'
-  const [diaryMode, setDiaryMode] = useState('text'); // 'text' or 'voice'
-  const [title, setTitle] = useState('');
+function UploadModal({ onClose, onUploadSuccess, onUpdateSuccess, editingItem }) {
+  const [tab, setTab] = useState(editingItem ? (editingItem.isDiary ? 'diary' : 'media') : 'media');
+  const [diaryMode, setDiaryMode] = useState(editingItem ? (editingItem.isAudio ? 'voice' : 'text') : 'text');
+  const [title, setTitle] = useState(editingItem ? editingItem.title : '');
   const [file, setFile] = useState(null);
   
   // Cover Art States
   const [coverArtFile, setCoverArtFile] = useState(null);
-  const [coverArtPreview, setCoverArtPreview] = useState('');
+  const [coverArtPreview, setCoverArtPreview] = useState(editingItem?.coverArtUrl || '');
 
-  const [lyrics, setLyrics] = useState('');
-  const [diaryContent, setDiaryContent] = useState('');
-  const [isFeaturedVideo, setIsFeaturedVideo] = useState(false);
-  const [isPreview, setIsPreview] = useState(false);
+  const [lyrics, setLyrics] = useState(editingItem?.lyrics || '');
+  const [diaryContent, setDiaryContent] = useState(editingItem?.content || '');
+  const [isFeaturedVideo, setIsFeaturedVideo] = useState(editingItem?.isFeaturedVideo || false);
+  const [isPreview, setIsPreview] = useState(editingItem?.isPreview || false);
   const [error, setError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
@@ -1015,6 +1047,61 @@ function UploadModal({ onClose, onUploadSuccess }) {
     setError('');
 
     try {
+      // ------------------------------------
+      // HANDLE EDIT EXISTING ITEM
+      // ------------------------------------
+      if (editingItem) {
+        let coverArtPublicUrl = editingItem.coverArtUrl;
+        let coverArtPath = editingItem.coverArtStoragePath;
+
+        // If a new cover art file is selected, upload it
+        if (coverArtFile && tab === 'media' && !isFeaturedVideo) {
+          // Delete old cover to save space
+          if (coverArtPath) await supabase.storage.from('uploads').remove([coverArtPath]).catch(()=>console.log("Cleanup failed"));
+
+          const coverExt = coverArtFile.name.split('.').pop() || 'png';
+          const safeCoverName = `cover_${Date.now()}.${coverExt}`;
+          coverArtPath = `uploads/${safeCoverName}`;
+          
+          const { error: coverUploadError } = await supabase.storage.from('uploads').upload(coverArtPath, coverArtFile, {
+            cacheControl: '3600',
+            upsert: false
+          });
+          if (coverUploadError) throw coverUploadError;
+          
+          const { data: coverData } = supabase.storage.from('uploads').getPublicUrl(coverArtPath);
+          coverArtPublicUrl = coverData.publicUrl;
+        } 
+        // If they clicked the 'X' to remove existing cover art
+        else if (!coverArtPreview && editingItem.coverArtUrl) {
+          if (coverArtPath) await supabase.storage.from('uploads').remove([coverArtPath]).catch(()=>console.log("Cleanup failed"));
+          coverArtPublicUrl = null;
+          coverArtPath = null;
+        }
+
+        const updateData = { title: title.trim() };
+
+        if (tab === 'media') {
+          updateData.lyrics = lyrics.trim() || null;
+          updateData.isFeaturedVideo = isFeaturedVideo;
+          updateData.isPreview = isPreview;
+          updateData.coverArtUrl = coverArtPublicUrl;
+          updateData.coverArtStoragePath = coverArtPath;
+        } else {
+          if (diaryMode === 'text') updateData.content = diaryContent.trim();
+        }
+
+        const { data: updatedData, error: dbError } = await supabase.from('files').update(updateData).eq('id', editingItem.id).select().single();
+        if (dbError) throw dbError;
+        
+        onUpdateSuccess(updatedData);
+        onClose();
+        return;
+      }
+
+      // ------------------------------------
+      // HANDLE CREATE NEW ITEM
+      // ------------------------------------
       let publicUrl = '';
       let storagePath = '';
       let finalFileSize = 0;
@@ -1137,7 +1224,9 @@ function UploadModal({ onClose, onUploadSuccess }) {
         
         <div className="p-6 border-b border-white/5 flex flex-col shrink-0 gap-4">
           <div className="flex items-center justify-between">
-             <h2 className="text-2xl font-bold text-white">Create New</h2>
+             <h2 className="text-2xl font-bold text-white">
+                {editingItem ? 'Edit Upload' : 'Create New'}
+             </h2>
              {!isUploading && !isRecording && (
                <button onClick={onClose} className="p-2 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
                  <X className="w-5 h-5" />
@@ -1145,8 +1234,8 @@ function UploadModal({ onClose, onUploadSuccess }) {
              )}
           </div>
           <div className="flex bg-black p-1 rounded-xl border border-white/5 w-full">
-            <button type="button" onClick={() => setTab('media')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'media' ? 'bg-purple-600 text-white' : 'text-neutral-500 hover:text-white'}`}>Upload Media</button>
-            <button type="button" onClick={() => setTab('diary')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'diary' ? 'bg-purple-600 text-white' : 'text-neutral-500 hover:text-white'}`}>Write Diary</button>
+            <button type="button" disabled={!!editingItem} onClick={() => setTab('media')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'media' ? 'bg-purple-600 text-white' : 'text-neutral-500 hover:text-white'} disabled:opacity-50`}>Upload Media</button>
+            <button type="button" disabled={!!editingItem} onClick={() => setTab('diary')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${tab === 'diary' ? 'bg-purple-600 text-white' : 'text-neutral-500 hover:text-white'} disabled:opacity-50`}>Write Diary</button>
           </div>
         </div>
         
@@ -1162,16 +1251,26 @@ function UploadModal({ onClose, onUploadSuccess }) {
                 {/* Media File Upload */}
                 <div>
                   <label className="block text-sm font-bold text-neutral-300 mb-2">Media File</label>
-                  <div className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${isUploading ? 'border-white/5 bg-black' : 'border-white/10 hover:border-purple-500/50 cursor-pointer bg-black/50 group'}`}>
-                    {!isUploading && <input type="file" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />}
-                    <Upload className={`w-10 h-10 mx-auto mb-4 transition-colors ${isUploading ? 'text-neutral-600' : 'text-neutral-500 group-hover:text-purple-400'}`} />
-                    {file ? (
-                      <div>
-                        <p className="text-white font-bold truncate px-4">{file.name}</p>
-                        <p className="text-xs font-medium text-purple-400 mt-1">{(file.size / (1024 * 1024)).toFixed(2)} MB Ready</p>
+                  {!editingItem ? (
+                    <div className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${isUploading ? 'border-white/5 bg-black' : 'border-white/10 hover:border-purple-500/50 cursor-pointer bg-black/50 group'}`}>
+                      {!isUploading && <input type="file" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />}
+                      <Upload className={`w-10 h-10 mx-auto mb-4 transition-colors ${isUploading ? 'text-neutral-600' : 'text-neutral-500 group-hover:text-purple-400'}`} />
+                      {file ? (
+                        <div>
+                          <p className="text-white font-bold truncate px-4">{file.name}</p>
+                          <p className="text-xs font-medium text-purple-400 mt-1">{(file.size / (1024 * 1024)).toFixed(2)} MB Ready</p>
+                        </div>
+                      ) : <p className="text-sm font-bold text-neutral-400">Click to browse or drag file here</p>}
+                    </div>
+                  ) : (
+                    <div className="bg-black/50 border border-white/10 rounded-2xl p-4 flex items-center gap-3">
+                      <FileArchive className="w-6 h-6 text-purple-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-white font-bold text-sm truncate">{editingItem.fileName}</p>
+                        <p className="text-xs text-neutral-500 mt-0.5">Media file cannot be changed during edit. Create a new track to replace the audio.</p>
                       </div>
-                    ) : <p className="text-sm font-bold text-neutral-400">Click to browse or drag file here</p>}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3 bg-black p-4 rounded-xl border border-white/5">
@@ -1225,64 +1324,74 @@ function UploadModal({ onClose, onUploadSuccess }) {
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <button type="button" onClick={() => setDiaryMode('text')} disabled={isRecording || isUploading} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${diaryMode === 'text' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-black text-neutral-500 hover:text-white border border-white/5'}`}><AlignLeft className="w-4 h-4"/> Text</button>
-                  <button type="button" onClick={() => setDiaryMode('voice')} disabled={isRecording || isUploading} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${diaryMode === 'voice' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-black text-neutral-500 hover:text-white border border-white/5'}`}><Mic className="w-4 h-4"/> Voice Note</button>
+                  <button type="button" disabled={!!editingItem} onClick={() => setDiaryMode('text')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${diaryMode === 'text' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-black text-neutral-500 hover:text-white border border-white/5'} disabled:opacity-50`}><AlignLeft className="w-4 h-4"/> Text</button>
+                  <button type="button" disabled={!!editingItem} onClick={() => setDiaryMode('voice')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${diaryMode === 'voice' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-black text-neutral-500 hover:text-white border border-white/5'} disabled:opacity-50`}><Mic className="w-4 h-4"/> Voice Note</button>
                 </div>
 
                 {diaryMode === 'text' ? (
                   <textarea value={diaryContent} onChange={(e) => setDiaryContent(e.target.value)} placeholder="Write your thoughts here..." disabled={isUploading} rows={8} className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50 resize-none transition-colors" />
                 ) : (
                   <div className="bg-black border border-white/10 rounded-xl p-6 text-center space-y-6">
-                    
-                    {!voiceBlob && !isRecording && (
-                      <div className="flex flex-col items-center gap-4">
-                        <label className="text-sm font-bold text-neutral-400">Select Voice FX</label>
-                        <div className="flex gap-2">
-                           <button type="button" onClick={() => setVoiceEffect('none')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${voiceEffect === 'none' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}>Raw</button>
-                           <button type="button" onClick={() => setVoiceEffect('studio')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${voiceEffect === 'studio' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}><Speaker className="w-3.5 h-3.5"/> Studio</button>
-                           <button type="button" onClick={() => setVoiceEffect('radio')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${voiceEffect === 'radio' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}><Radio className="w-3.5 h-3.5"/> Radio</button>
-                           <button type="button" onClick={() => setVoiceEffect('echo')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${voiceEffect === 'echo' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}>Echo</button>
-                        </div>
-                        <button type="button" onClick={startRecording} className="mt-4 w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-[0_0_20px_rgba(239,68,68,0.2)]">
-                           <Mic className="w-6 h-6" />
-                        </button>
-                        <p className="text-sm text-neutral-500">Tap to start recording</p>
-                      </div>
-                    )}
-
-                    {isRecording && (
-                      <div className="flex flex-col items-center gap-4 py-4">
-                        <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-white animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.6)]">
-                           <Mic className="w-6 h-6" />
-                        </div>
-                        <p className="text-red-400 font-bold tracking-widest uppercase text-sm flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-red-500"></span> Recording (FX: {voiceEffect})
-                        </p>
-                        <button type="button" onClick={stopRecording} className="mt-2 px-6 py-2.5 bg-white text-black font-bold rounded-full hover:bg-neutral-200 flex items-center gap-2">
-                           <Square className="w-4 h-4 fill-current" /> Stop
-                        </button>
-                      </div>
-                    )}
-
-                    {voiceBlob && !isRecording && (
+                    {editingItem ? (
                       <div className="flex flex-col items-center gap-4 py-2">
-                        <div className="w-full bg-gradient-to-r from-purple-900/20 to-indigo-900/20 p-6 rounded-3xl border border-purple-500/20 flex flex-col items-center gap-4 shadow-inner">
-                          <div className="w-14 h-14 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 relative overflow-hidden">
-                            <div className="absolute inset-0 bg-purple-500/10 animate-pulse"></div>
-                            <Mic className="w-6 h-6 relative z-10" />
-                          </div>
-                          <div className="text-center">
-                            <h4 className="font-bold text-white text-base">Voice Note Ready</h4>
-                            <p className="text-xs text-purple-400 font-bold uppercase tracking-widest mt-1">FX Applied: {voiceEffect}</p>
-                          </div>
-                          <div className="w-full bg-black/60 p-3 rounded-2xl border border-white/5 mt-2 shadow-lg">
-                            <audio src={voiceUrl} controls className="w-full h-10 outline-none" />
-                          </div>
+                        <p className="text-sm text-neutral-400">Editing Voice Note Metadata</p>
+                        <div className="w-full bg-neutral-900 p-4 rounded-xl border border-white/5 flex items-center gap-4">
+                          <audio src={editingItem.url} controls className="w-full h-10 custom-audio" />
                         </div>
-                        <button type="button" onClick={clearRecording} disabled={isUploading} className="text-sm text-red-400 hover:text-red-300 font-bold flex items-center gap-1.5 px-5 py-2.5 rounded-full hover:bg-red-400/10 transition-colors">
-                          <Trash2 className="w-4 h-4"/> Trash & Record Again
-                        </button>
                       </div>
+                    ) : (
+                      <>
+                        {!voiceBlob && !isRecording && (
+                          <div className="flex flex-col items-center gap-4">
+                            <label className="text-sm font-bold text-neutral-400">Select Voice FX</label>
+                            <div className="flex gap-2">
+                               <button type="button" onClick={() => setVoiceEffect('none')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${voiceEffect === 'none' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}>Raw</button>
+                               <button type="button" onClick={() => setVoiceEffect('studio')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${voiceEffect === 'studio' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}><Speaker className="w-3.5 h-3.5"/> Studio</button>
+                               <button type="button" onClick={() => setVoiceEffect('radio')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${voiceEffect === 'radio' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}><Radio className="w-3.5 h-3.5"/> Radio</button>
+                               <button type="button" onClick={() => setVoiceEffect('echo')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${voiceEffect === 'echo' ? 'bg-white text-black' : 'bg-neutral-900 text-neutral-400 hover:text-white'}`}>Echo</button>
+                            </div>
+                            <button type="button" onClick={startRecording} className="mt-4 w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+                               <Mic className="w-6 h-6" />
+                            </button>
+                            <p className="text-sm text-neutral-500">Tap to start recording</p>
+                          </div>
+                        )}
+
+                        {isRecording && (
+                          <div className="flex flex-col items-center gap-4 py-4">
+                            <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-white animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.6)]">
+                               <Mic className="w-6 h-6" />
+                            </div>
+                            <p className="text-red-400 font-bold tracking-widest uppercase text-sm flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-red-500"></span> Recording (FX: {voiceEffect})
+                            </p>
+                            <button type="button" onClick={stopRecording} className="mt-2 px-6 py-2.5 bg-white text-black font-bold rounded-full hover:bg-neutral-200 flex items-center gap-2">
+                               <Square className="w-4 h-4 fill-current" /> Stop
+                            </button>
+                          </div>
+                        )}
+
+                        {voiceBlob && !isRecording && (
+                          <div className="flex flex-col items-center gap-4 py-2">
+                            <div className="w-full bg-gradient-to-r from-purple-900/20 to-indigo-900/20 p-6 rounded-3xl border border-purple-500/20 flex flex-col items-center gap-4 shadow-inner">
+                              <div className="w-14 h-14 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 relative overflow-hidden">
+                                <div className="absolute inset-0 bg-purple-500/10 animate-pulse"></div>
+                                <Mic className="w-6 h-6 relative z-10" />
+                              </div>
+                              <div className="text-center">
+                                <h4 className="font-bold text-white text-base">Voice Note Ready</h4>
+                                <p className="text-xs text-purple-400 font-bold uppercase tracking-widest mt-1">FX Applied: {voiceEffect}</p>
+                              </div>
+                              <div className="w-full bg-black/60 p-3 rounded-2xl border border-white/5 mt-2 shadow-lg">
+                                <audio src={voiceUrl} controls className="w-full h-10 outline-none" />
+                              </div>
+                            </div>
+                            <button type="button" onClick={clearRecording} disabled={isUploading} className="text-sm text-red-400 hover:text-red-300 font-bold flex items-center gap-1.5 px-5 py-2.5 rounded-full hover:bg-red-400/10 transition-colors">
+                              <Trash2 className="w-4 h-4"/> Trash & Record Again
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -1294,8 +1403,8 @@ function UploadModal({ onClose, onUploadSuccess }) {
           
           <div className="mt-8 flex items-center justify-end gap-3 pt-6 border-t border-white/5">
             <button type="button" onClick={onClose} disabled={isUploading || isRecording} className="px-6 py-3 rounded-xl font-bold text-neutral-400 hover:text-white hover:bg-white/5 disabled:opacity-50 transition-colors">Cancel</button>
-            <button type="submit" disabled={isUploading || isRecording || (tab==='media' && !file) || (tab==='diary' && diaryMode==='voice' && !voiceBlob)} className="px-8 py-3 rounded-xl font-bold bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 flex items-center gap-2 transition-all shadow-lg shadow-purple-900/30">
-              {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> Publishing...</> : <><PenTool className="w-5 h-5" /> Publish</>}
+            <button type="submit" disabled={isUploading || isRecording || (!editingItem && tab==='media' && !file) || (!editingItem && tab==='diary' && diaryMode==='voice' && !voiceBlob)} className="px-8 py-3 rounded-xl font-bold bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 flex items-center gap-2 transition-all shadow-lg shadow-purple-900/30">
+              {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> Saving...</> : <><PenTool className="w-5 h-5" /> {editingItem ? 'Save Changes' : 'Publish'}</>}
             </button>
           </div>
         </form>
